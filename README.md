@@ -17,6 +17,8 @@ A later LoRA experiment is specified in
 `configs/lora-plan.json`; that file is a plan, not a working trained model.
 The [DeBERTa Gemini-version diagnostic](docs/gemini-deberta.md) records a completed
 five-fold experiment on the 570 correctly routed Gemini passages.
+The [frozen embedding comparison](docs/frozen-gemini.md) evaluates StyleDistance and
+Qwen3-Embedding-0.6B with logistic regression and nested prompt-grouped validation.
 
 ## Local setup
 
@@ -84,7 +86,10 @@ The first official-data CPU baseline has completed prompt-grouped validation: 0.
 locally and 0.359667 on Kaggle using the same fold assignments. See
 [the first-run record](docs/first-run.md) for environments and submission details.
 The first Kaggle submission completed successfully with public balanced accuracy **0.360**.
-Qwen model ranking, T4 memory profiling, full hidden-size runtime, and LoRA training
-remain unmeasured.
+On the fixed 570-row Gemini-version diagnostic, CPU accuracy is 51.05%; frozen
+StyleDistance reaches 44.39%, frozen Qwen3-Embedding-0.6B 32.63%, and the earlier
+fine-tuned DeBERTa recipe 29.12%. These conditional diagnostic scores are separate
+from the full competition score.
+Qwen3-8B-Base model ranking, T4 memory use, runtime, and LoRA training remain unmeasured.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

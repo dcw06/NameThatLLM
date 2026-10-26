@@ -36,6 +36,14 @@ MODEL_SPECS = {
         "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
         "model_type": "deberta-v2", "hidden_size": 768, "num_hidden_layers": 12,
     },
+    "StyleDistance/styledistance": {
+        "revision": "b7df5f0b0480773c097ba3121d83ca32b71015ca",
+        "model_type": "roberta", "hidden_size": 768, "num_hidden_layers": 12,
+    },
+    "Qwen/Qwen3-Embedding-0.6B": {
+        "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+        "model_type": "qwen3", "hidden_size": 1024, "num_hidden_layers": 28,
+    },
     "Qwen/Qwen3.5-9B": {
         "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
         "model_type": "qwen3_5", "hidden_size": 4096, "num_hidden_layers": 32,
