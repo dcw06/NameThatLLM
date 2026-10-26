@@ -15,6 +15,8 @@ and [experiment protocol](docs/experiments.md). For a first API submission witho
 preparing neural weights or wheel datasets, see [the API guide](docs/kaggle-api.md).
 A later LoRA experiment is specified in
 `configs/lora-plan.json`; that file is a plan, not a working trained model.
+The [DeBERTa Gemini-version diagnostic](docs/gemini-deberta.md) records a completed
+five-fold experiment on the 570 correctly routed Gemini passages.
 
 ## Local setup
 

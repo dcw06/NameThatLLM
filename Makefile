@@ -1,5 +1,6 @@
 UV := uv --cache-dir .cache/uv
 export UV_PYTHON_INSTALL_DIR := $(CURDIR)/.tools/python
+export PYTHONPATH := $(CURDIR)/src
 TRAIN ?= data/raw/train.csv
 TEST ?= data/raw/test.csv
 

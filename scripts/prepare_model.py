@@ -32,6 +32,10 @@ MODEL_SPECS = {
         "revision": "64a8c8eab3e352a784c658aef62be1662607476f",
         "model_type": "deberta-v2", "hidden_size": 1024, "num_hidden_layers": 24,
     },
+    "microsoft/deberta-v3-base": {
+        "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+        "model_type": "deberta-v2", "hidden_size": 768, "num_hidden_layers": 12,
+    },
     "Qwen/Qwen3.5-9B": {
         "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
         "model_type": "qwen3_5", "hidden_size": 4096, "num_hidden_layers": 32,

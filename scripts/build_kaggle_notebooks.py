@@ -139,7 +139,9 @@ if hashlib.sha256(wheel_requirements_path.read_bytes()).hexdigest() != WHEEL_REQ
 # Train and infer in a fresh package environment, independent of packages that
 # Kaggle's notebook kernel may already have imported (including audio/vision).
 RUNTIME_DIR = Path("/kaggle/working/ntl_env") / (WHEEL_PROFILE + "-" + WHEEL_REQUIREMENTS_SHA256[:12])
-venv.EnvBuilder(with_pip=True, system_site_packages=False).create(RUNTIME_DIR)
+# Kaggle can disable ensurepip; the notebook's existing pip can install into
+# a pip-less virtual environment through its supported --python option.
+venv.EnvBuilder(with_pip=False, system_site_packages=False).create(RUNTIME_DIR)
 RUNTIME_PYTHON = str(RUNTIME_DIR / "bin" / "python")
 RUNTIME_ENV = dict(os.environ)
 RUNTIME_ENV.pop("PYTHONHOME", None)
@@ -147,7 +149,8 @@ RUNTIME_ENV["PYTHONPATH"] = str(SOURCE_ROOT)
 RUNTIME_ENV["PYTHONNOUSERSITE"] = "1"
 RUNTIME_ENV["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
 subprocess.run(
-    [RUNTIME_PYTHON, "-m", "pip", "install", "--no-index", "--find-links",
+    [sys.executable, "-m", "pip", "--python", RUNTIME_PYTHON,
+     "install", "--no-index", "--find-links",
      str(WHEEL_DIR), "--require-hashes", "-r", str(wheel_requirements_path)],
     check=True, env=RUNTIME_ENV,
 )
