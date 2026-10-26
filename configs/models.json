@@ -1,0 +1,43 @@
+{
+  "selected": "qwen3-8b-base",
+  "selection_status": "evidence-based initial choice; pending own grouped CV and GPU profiling",
+  "models": {
+    "qwen3-8b-base": {
+      "repo_id": "Qwen/Qwen3-8B-Base",
+      "revision": "49e3418fbbbca6ecbdf9608b4d22e5a407081db4",
+      "license": "Apache-2.0",
+      "model_type": "qwen3",
+      "original_layers": 36,
+      "hidden_size": 4096,
+      "retained_layers": 24,
+      "pool_layers": [7, 22],
+      "quantization": "nf4",
+      "max_length": 512,
+      "batch_size": 2
+    },
+    "qwen3-4b-base": {
+      "repo_id": "Qwen/Qwen3-4B-Base",
+      "revision": "906bfd4b4dc7f14ee4320094d8b41684abff8539",
+      "license": "Apache-2.0",
+      "role": "memory fallback; requires an independent comparison"
+    },
+    "deberta-v3-large": {
+      "repo_id": "microsoft/deberta-v3-large",
+      "revision": "64a8c8eab3e352a784c658aef62be1662607476f",
+      "license": "MIT",
+      "role": "cheaper bidirectional encoder comparison"
+    },
+    "qwen3-14b-base": {
+      "repo_id": "Qwen/Qwen3-14B-Base",
+      "revision": "0b0bd3732e2c374d483664439ea334928b65f304",
+      "license": "Apache-2.0",
+      "role": "later challenger after hardware profiling"
+    },
+    "qwen3.5-9b": {
+      "repo_id": "Qwen/Qwen3.5-9B",
+      "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+      "license": "Apache-2.0",
+      "role": "later architecture experiment; separate dependency stack"
+    }
+  }
+}

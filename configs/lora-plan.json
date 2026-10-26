@@ -1,0 +1,20 @@
+{
+  "status": "planned experiment; not a trained checkpoint or a guaranteed T4 fit",
+  "repo_id": "Qwen/Qwen3-8B-Base",
+  "revision": "49e3418fbbbca6ecbdf9608b4d22e5a407081db4",
+  "retained_layers": 24,
+  "readout_layers": [2, 4, 6, 8, 12, 16, 20, 24],
+  "readout": "masked mean, separate layer normalization, concatenated 18-class head",
+  "adapter_rank": 16,
+  "adapter_alpha": 32,
+  "adapter_dropout": 0.05,
+  "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+  "precision": "NF4 with float16 compute on T4; compare against unquantized truncation",
+  "max_length": 512,
+  "micro_batch_size": 1,
+  "gradient_accumulation_steps": 16,
+  "gradient_checkpointing": true,
+  "training_stages": ["audited external training pool", "official training partition only"],
+  "selection_metric": "balanced accuracy on held-out prompt groups",
+  "prerequisites": ["official data audit", "frozen baseline CV", "token-length audit", "GPU memory and 4000-row inference profile", "external-data provenance audit"]
+}
