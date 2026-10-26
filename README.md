@@ -78,8 +78,11 @@ Load serialized artifacts only from this project or a trusted source: joblib use
 
 ## Status
 
-This repository is a setup and diagnostic baseline. Official-data CV, model ranking,
-T4 memory profiling, full hidden-size runtime, LoRA training, and leaderboard performance
-must be measured once the corresponding data and compute are available.
+The first official-data CPU baseline has completed prompt-grouped validation: 0.363368
+locally and 0.359667 on Kaggle using the same fold assignments. See
+[the first-run record](docs/first-run.md) for environments and submission details.
+The first Kaggle submission completed successfully with public balanced accuracy **0.360**.
+Qwen model ranking, T4 memory profiling, full hidden-size runtime, and LoRA training
+remain unmeasured.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
