@@ -91,6 +91,60 @@ Local predictions and reports are in `artifacts/gemini-deberta-results/gemini-di
 DeBERTa prediction, fold, correctness flags, and confidence. Raw per-row artifacts
 remain excluded from Git. No new competition submission was made.
 
+## Training diagnostic, October 26, 2026
+
+The near-uniform loss raised the question of whether this loop can fit at all.
+`ntl.deberta_probe` calls the unchanged `_fit_predict_fold` and observes it through
+wrappers: pre-clipping gradient norms by parameter group, per-update parameter movement,
+learning rate, and AMP scale. A test confirms that predictions and losses are identical
+with and without the wrappers. Each probe trains on rows from outer fold 0's fitting
+partition only and then scores those same rows in evaluation mode. No outer validation
+row is used.
+
+Both probes ran on local CPU in float32 with the same torch 2.8.0 and transformers 4.57.1
+versions as the Kaggle run. Autocast and GradScaler are disabled on CPU.
+
+| Run | Rows | Updates | Mean training loss by epoch | Fit on the same rows afterwards |
+| --- | ---: | ---: | --- | --- |
+| Small subset, 40 epochs, recipe otherwise unchanged | 32 (8 per version) | 80 | near 1.38 through epoch 7, then falling to 0.449 at epoch 40 | 32/32 correct, cross-entropy 0.406 |
+| Full fold-0 fitting partition, exact recipe | 480 | 90 | 1.391, 1.388, 1.369 | 226/480 (47.1%), cross-entropy 1.359 |
+| Kaggle T4 float16-AMP run, fold 0 (from above) | 480 | 90 | 1.395, 1.390, 1.374 | not measured |
+
+- Every parameter receives a finite gradient at every update, and every group moves.
+  Pre-clipping gradient norms have medians of 3.2 (subset) and 2.0 (full fold), so 100%
+  and 99% of updates are clipped at 1.0. With AdamW, this rescales each step's gradient
+  and does not by itself stop learning.
+- Over the 90 full-fold updates, encoder weights move 0.21% relative to their initial
+  norm and the new classifier 0.50%. On the subset, they move 0.39% and 1.4%.
+- Linear warmup starts at zero, so the first optimizer update has learning rate 0.
+  This is harmless.
+- The float32 run reproduces the AMP loss curve to within about 0.005 per epoch.
+  Float16 autocast and loss scaling therefore do not explain the flat loss.
+
+**Interpretation.** The loop can fit data, with observable gradients and parameter
+changes. The flat loss is consistent with an optimization budget that is too small. On
+32 rows, the loss stayed near uniform for about 14 updates (seven passes) before
+falling. The full recipe makes three passes over 480 rows, after which it fits its own
+training passages at only 47% accuracy, with near-uniform confidence (mean maximum
+probability 0.27). Those predictions lean heavily to `gemini-3.1-pro-preview` (247 of
+480) and rarely choose `gemini-3.6-flash` (8). This shows underfitting of the training
+data. It is not evidence of a bug, and it says nothing about whether a longer schedule
+would generalize to unseen prompts. A future run should fix a longer schedule in
+advance, or choose it within inner folds, and confirm training-set fit before any outer
+evaluation.
+
+```sh
+PYTHONPATH=src .venv/bin/python -m ntl.deberta_probe --train data/raw/train.csv \
+  --baseline-oof artifacts/kaggle-version-1/cpu-cv/oof.parquet \
+  --fold-manifest artifacts/kaggle-version-1/cpu-cv/folds.csv \
+  --model-path models/deberta-v3-base --output-dir artifacts/deberta-probe/lr2e-5
+# Full fitting partition with the exact recipe:
+#   --per-class 0 --epochs 3 --output-dir artifacts/deberta-probe/full-fold0-fp32
+```
+
+The two probes took 9.0 and 11.6 minutes on a 10-core Apple CPU. Per-update records
+are in each `artifacts/deberta-probe/*/probe.json` and remain excluded from Git.
+
 Sources: [upstream model card](https://huggingface.co/microsoft/deberta-v3-base),
 [pinned model configuration](https://huggingface.co/microsoft/deberta-v3-base/blob/8ccc9b6f36199bec6961081d44eb72fb3f7353f3/config.json),
 [pip interpreter targeting](https://pip.pypa.io/en/stable/topics/python-option/).
