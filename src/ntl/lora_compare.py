@@ -97,6 +97,8 @@ def compare(train: pd.DataFrame, features: np.ndarray, plan: pd.DataFrame, curre
     current_frame = current_oof.set_index("id").loc[train["id"]]
     if (current_frame["true_model"].to_numpy() != train["model"].to_numpy()).any():
         raise ValueError("Current-system OOF labels differ from the official rows")
+    if (current_frame["fold"].to_numpy() != folds).any():
+        raise ValueError("Current-system OOF must come from the plan's outer folds")
     current = current_frame[[f"blend::{label}" for label in LABELS]].to_numpy()
     current_inner_cache = {fold: current_inner(train, features, plan, fold, config) for fold in range(5)}
     probabilities, selection = {"current": current}, {}

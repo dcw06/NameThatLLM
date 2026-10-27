@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from test_lora import save_tokenizer
 
 from ntl import ensemble, lora, lora_compare, neural
 from ntl.constants import LABELS
@@ -12,8 +13,9 @@ from ntl.smoke import synthetic_frames
 
 
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, monkeypatch):
     pytest.importorskip("torch")
+    monkeypatch.setattr(neural, "validate_snapshot", lambda *_, **__: {"revision": "synthetic"})
     train, _ = synthetic_frames(n_prompts=10)
     manifest, metadata = build_fold_manifest(train)
     manifest_path = save_fold_manifest(manifest, metadata, tmp_path / "folds")
@@ -25,8 +27,8 @@ def setup(tmp_path):
     adapter_config = lora.AdapterConfig(durations=(0.0, 1.0), learning_rates=(1e-3,), micro_batch=8,
                                         accumulation=1, warmup_steps=1)
     plan = lora.split_plan(train, manifest_path, adapter_config)
-    experiment = lora.Experiment(train, features, adapters=False, config=adapter_config,
-                                 frozen=neural.FrozenConfig(), device="cpu")
+    experiment = lora.Experiment(train, features, adapters=False, model_path=save_tokenizer(tmp_path / "tokenizer"),
+                                 config=adapter_config, frozen=neural.FrozenConfig(), device="cpu")
     for fold in range(5):
         lora.run_fold(train, plan, experiment, fold, tmp_path / "control" / f"fold{fold}")
     return train, features, plan, config, tmp_path
@@ -49,6 +51,15 @@ def test_compare_scores_every_row_and_chooses_weights_from_inner_rows(setup):
             assert (predictions.loc[rows, "prediction::control+current"]
                     == predictions.loc[rows, "prediction::current"]).all()
     assert {"control_vs_current", "control+current_vs_current"} <= set(result["paired"])
+
+
+def test_current_system_must_come_from_the_plans_outer_folds(setup):
+    train, features, plan, config, root = setup
+    current = pd.read_parquet(root / "current" / "oof.parquet")
+    current["fold"] = (current["fold"] + 1) % 5
+    with pytest.raises(ValueError, match="outer folds"):
+        lora_compare.compare(train, features, plan, current, {"control": root / "control"}, root / "rotated",
+                             config, samples=10)
 
 
 def test_inner_predictions_must_cover_the_inner_rows(setup):

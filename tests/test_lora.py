@@ -11,30 +11,40 @@ from ntl.constants import LABELS
 from ntl.folds import build_fold_manifest, save_fold_manifest
 from ntl.smoke import synthetic_frames
 
+VOCABULARY = {"[PAD]": 0, "[EOS]": 1, "[UNK]": 2, ".": 3} | {
+    f"ClassMarker{index:02d}": 4 + index for index in range(len(LABELS))}
+
+
+def save_tokenizer(directory):
+    """A word-level tokenizer over the synthetic vocabulary, saved like a snapshot's tokenizer."""
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+    from tokenizers.pre_tokenizers import Whitespace
+    from transformers import PreTrainedTokenizerFast
+
+    core = Tokenizer(WordLevel(VOCABULARY, unk_token="[UNK]"))
+    core.pre_tokenizer = Whitespace()
+    PreTrainedTokenizerFast(tokenizer_object=core, pad_token="[PAD]", eos_token="[EOS]",
+                            unk_token="[UNK]").save_pretrained(directory)
+    return directory
+
 
 @pytest.fixture
 def tiny(tmp_path, monkeypatch):
     torch = pytest.importorskip("torch")
     pytest.importorskip("peft")
-    from tokenizers import Tokenizer
-    from tokenizers.models import WordLevel
-    from tokenizers.pre_tokenizers import Whitespace
-    from transformers import PreTrainedTokenizerFast, Qwen3Config, Qwen3ForCausalLM
+    from transformers import Qwen3Config, Qwen3ForCausalLM
 
     torch.manual_seed(5)
-    vocabulary = {"[PAD]": 0, "[EOS]": 1, "[UNK]": 2, ".": 3}
-    vocabulary |= {f"ClassMarker{index:02d}": 4 + index for index in range(len(LABELS))}
     architecture = Qwen3Config(
-        vocab_size=len(vocabulary), hidden_size=16, intermediate_size=32, num_hidden_layers=4,
+        vocab_size=len(VOCABULARY), hidden_size=16, intermediate_size=32, num_hidden_layers=4,
         num_attention_heads=2, num_key_value_heads=2, head_dim=8, max_position_embeddings=64,
         attention_dropout=0.0, pad_token_id=0, eos_token_id=1,
     )
     Qwen3ForCausalLM(architecture).save_pretrained(tmp_path / "model")
-    core = Tokenizer(WordLevel(vocabulary, unk_token="[UNK]"))
-    core.pre_tokenizer = Whitespace()
-    PreTrainedTokenizerFast(tokenizer_object=core, pad_token="[PAD]", eos_token="[EOS]",
-                            unk_token="[UNK]").save_pretrained(tmp_path / "model")
-    monkeypatch.setattr(neural, "validate_snapshot", lambda _: {"repo_id": "synthetic", "revision": "synthetic"})
+    save_tokenizer(tmp_path / "model")
+    monkeypatch.setattr(neural, "validate_snapshot",
+                        lambda *_, **__: {"repo_id": "synthetic", "revision": "synthetic"})
     train, _ = synthetic_frames(n_prompts=10)
     manifest, metadata = build_fold_manifest(train)
     manifest_path = save_fold_manifest(manifest, metadata, tmp_path / "folds")
@@ -59,6 +69,20 @@ def test_plan_inner_folds_partition_each_outer_training_partition_by_prompt(tiny
     broken.loc[broken.index[0], "inner_0"] = 7
     with pytest.raises(ValueError):
         lora.validate_plan(tiny["train"], broken, tiny["config"])
+    # One row of a fold-0 prompt moved to fold 1, with consistent inner columns: only the
+    # outer-fold check can catch this leak.
+    leaky = tiny["plan"].copy()
+    row = leaky.index[leaky["outer_fold"] == 0][0]
+    leaky.loc[row, ["outer_fold", "inner_0", "inner_1"]] = [1, 0, -1]
+    with pytest.raises(ValueError, match="Outer folds must keep prompts together"):
+        lora.validate_plan(tiny["train"], leaky, tiny["config"])
+    # Fold 4 merged into fold 3, with consistent inner columns: only the fold-value check
+    # catches the missing fold.
+    merged = tiny["plan"].copy()
+    rows = merged["outer_fold"] == 4
+    merged.loc[rows, ["outer_fold", "inner_3", "inner_4"]] = [3, -1, 0]
+    with pytest.raises(ValueError, match="exactly the five folds"):
+        lora.validate_plan(tiny["train"], merged, tiny["config"])
 
 
 def test_head_starts_exactly_at_the_frozen_pipeline(tiny):
@@ -92,6 +116,30 @@ def test_adapters_start_at_frozen_features_train_and_reset_deterministically(tin
     # 24 rows in micro-batches of 4, two per step: 3 steps per epoch, so checkpoints at steps 2 and 3.
     assert [record["optimizer_steps"] for record in first["checkpoints"]] == [2, 3]
     assert [record["durations"] for record in first["checkpoints"]] == [[0.5], [1.0]]
+    # A zero-duration run after training (the final fit of a frozen choice) restores the
+    # initial adapters rather than keeping the last run's.
+    untrained = experiment.run(rows, rows[:0], 1e-2, [])
+    assert not untrained["checkpoints"]
+    assert all(torch.equal(value, experiment.initial[name])
+               for name, value in experiment.model.named_parameters() if name in experiment.initial)
+
+
+def test_control_trains_on_the_adapted_models_batches(tiny, monkeypatch):
+    checks = []
+    monkeypatch.setattr(neural, "validate_snapshot",
+                        lambda _, **options: checks.append(options) or {"revision": "synthetic"})
+    # Synthetic passages all have the same length; vary them so that bucketing matters.
+    train = tiny["train"].assign(text=[" ".join(text.split()[:3 + index % 12])
+                                       for index, text in enumerate(tiny["train"]["text"])])
+    common = {"frozen": tiny["frozen"], "config": tiny["config"], "device": "cpu"}
+    adapted = lora.Experiment(train, tiny["cached"], adapters=True, model_path=tiny["model"], **common)
+    control = lora.Experiment(train, tiny["cached"], adapters=False, model_path=tiny["model"], **common)
+    assert len(set(adapted.lengths)) > 1
+    # Batches are a function of the lengths and the seed alone, so equal lengths mean equal batches.
+    np.testing.assert_array_equal(control.lengths, adapted.lengths)
+    assert checks == [{}, {"weights": False}]  # the control checks the pin of its weightless snapshot
+    with pytest.raises(ValueError, match="tokenizer"):
+        lora.Experiment(tiny["train"], tiny["cached"], adapters=False, **common)
 
 
 @pytest.mark.parametrize("adapters", [False, True])
@@ -117,6 +165,7 @@ def test_fold_chooses_epochs_on_inner_rows_and_scores_only_outer_rows(tiny, tmp_
 def test_probe_reports_fit_by_epoch_and_speed(tiny, tmp_path):
     experiment = lora.Experiment(tiny["train"], tiny["cached"], adapters=True, model_path=tiny["model"],
                                  frozen=tiny["frozen"], config=tiny["config"], device="cpu")
+    experiment.run(np.arange(24), np.arange(0), 1e-1, [2.0])  # leaves trained adapters behind
     report = lora.probe_training(tiny["train"], tiny["plan"], experiment, tmp_path, per_class=1, epochs=2)
     assert report["rows"] == len(LABELS)
     assert report["init_vs_frozen_archive"]["max_abs"] < 1e-4

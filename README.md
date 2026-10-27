@@ -105,9 +105,10 @@ on one T4 at 5.25 GB of peak memory. Its offline submission (57685450) scored **
 public balanced accuracy, against 0.360 for the CPU baseline; the cross-validation gap is
 discussed in [the blend record](docs/qwen-blend.md#submission-result). A
 [topic-grouped check](docs/qwen-blend.md#topic-grouped-validation) finds Qwen's 7.5-point
-lead over the CPU unchanged when whole subject areas are held out, so topic shift does not
-explain that gap. [QLoRA adaptation](docs/lora.md) does not improve on it: the adapted model
-alone reaches 0.4334, level with its adapters-disabled control, and its nested blend with the
-current system 0.4545 (+0.04 points, 95% interval [−0.81, +0.89]), so the current system stays.
+lead over the CPU unchanged when whole subject areas are held out. That is no sign that topic
+shift explains the gap, though the check cannot rule it out. [QLoRA adaptation](docs/lora.md)
+does not improve on the current system. The adapted model alone reaches 0.4334, no better than
+its adapters-disabled control (0.4379). Its nested blend with the current system reaches 0.4545
+(+0.04 points, 95% interval [−0.81, +0.89]), so the current system stays.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

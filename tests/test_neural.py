@@ -42,6 +42,26 @@ def test_snapshot_checks_pinned_revision_and_file_sizes(tmp_path):
         neural.validate_snapshot(tmp_path)
 
 
+def test_weightless_snapshot_is_accepted_only_for_its_tokenizer(tmp_path):
+    config = {"model_type": "qwen3", "num_hidden_layers": 36, "hidden_size": 4096}
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    (tmp_path / "tokenizer.json").write_text("{}")
+    manifest = {
+        "schema_version": 1, "repo_id": neural.MODEL_ID,
+        "revision": neural.MODEL_REVISION, "includes_weights": False,
+        "files": [{"path": p.name, "size": p.stat().st_size} for p in tmp_path.iterdir()],
+    }
+    path = tmp_path / "snapshot_manifest.json"
+    path.write_text(json.dumps(manifest))
+    assert neural.validate_snapshot(tmp_path, weights=False)["revision"] == neural.MODEL_REVISION
+    with pytest.raises(ValueError, match="weights"):
+        neural.validate_snapshot(tmp_path)
+    manifest["revision"] = "0" * 40
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="pinned"):
+        neural.validate_snapshot(tmp_path, weights=False)
+
+
 def test_padding_does_not_change_masked_feature_means():
     torch = pytest.importorskip("torch")
     state = torch.tensor([[[1., 3.], [3., 5.], [999., 999.]]])

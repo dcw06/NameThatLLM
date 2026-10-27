@@ -96,6 +96,10 @@ def validate_plan(train: pd.DataFrame, plan: pd.DataFrame, config: AdapterConfig
     plan = train[["id"]].merge(plan, on="id", how="left", validate="one_to_one")
     if plan.isna().any().any() or (plan["prompt_id"] != train["prompt_id"]).any():
         raise ValueError("Split plan must cover every training row with its own prompt")
+    if set(plan["outer_fold"]) != set(range(5)):
+        raise ValueError("Outer folds must be exactly the five folds 0-4")
+    if plan.groupby("prompt_id")["outer_fold"].nunique().max() != 1:
+        raise ValueError("Outer folds must keep prompts together")
     for fold in range(5):
         column = plan[f"inner_{fold}"].to_numpy()
         outer = plan["outer_fold"].to_numpy() == fold
@@ -165,7 +169,8 @@ class Experiment:
         if self.cached.shape[0] != len(train):
             raise ValueError("Cached frozen features must align with the training rows")
         self.device = device if not adapters else None
-        self.lengths = np.zeros(len(train), dtype=np.int64)
+        if model_path is None:
+            raise ValueError("model_path is required: the control also needs the backbone's tokenizer")
         if adapters:
             from peft import LoraConfig, get_peft_model
 
@@ -184,9 +189,22 @@ class Experiment:
             # Every run restarts from the same adapter initialisation (B = 0: the frozen backbone).
             self.initial = {name: value.detach().clone() for name, value in self.model.named_parameters()
                             if value.requires_grad}
-            self.lengths = np.asarray(tokenizer(self.texts, truncation=True, max_length=self.frozen.max_length,
-                                                return_length=True)["length"])
+        else:
+            self.manifest = neural.validate_snapshot(model_path, weights=False)
+            tokenizer = neural.load_tokenizer(model_path)
+        # Batches are bucketed by token length, so the control needs the same lengths to train
+        # on exactly the adapted model's batches.
+        self.lengths = np.asarray(tokenizer(self.texts, truncation=True, max_length=self.frozen.max_length,
+                                            return_length=True)["length"])
         self.cuda = str(self.device).startswith("cuda")
+
+    def reset(self) -> None:
+        """Restore the adapter initialisation (B = 0: the frozen backbone); no-op for the control."""
+        if self.adapters:
+            with self.torch.no_grad():
+                for name, value in self.model.named_parameters():
+                    if name in self.initial:
+                        value.copy_(self.initial[name])
 
     def trainable_parameters(self) -> int:
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad) if self.adapters else 0
@@ -229,14 +247,12 @@ class Experiment:
         result = {"probabilities": {}, "checkpoints": [], "head": head, "probe": probe}
         if len(eval_rows):
             result["probabilities"][0.0] = probe["pipeline"].predict_proba(self.cached[eval_rows])
+        # Reset even when nothing trains, so a zero-duration run never keeps an earlier run's adapters.
+        self.reset()
         if not checkpoints:
             return result
         torch.manual_seed(self.config.seed)
         if self.adapters:
-            with torch.no_grad():
-                for name, value in self.model.named_parameters():
-                    if name in self.initial:
-                        value.copy_(self.initial[name])
             self.model.train()
         head.train()
         parameters = list(head.parameters())
@@ -356,6 +372,7 @@ def run_fold(train: pd.DataFrame, plan: pd.DataFrame, experiment: Experiment, ou
     pd.concat(inner_rows, ignore_index=True).to_parquet(output / "inner.parquet", index=False)
     outer_frame.to_parquet(output / "outer.parquet", index=False)
     log = {"outer_fold": outer_fold, "adapters": experiment.adapters,
+           "model_revision": experiment.manifest.get("revision"),
            "selected_setting": setting_name(rate, duration), "selected_learning_rate": rate,
            "selected_duration": duration,
            "inner_balanced_accuracy": {setting_name(*key): values for key, values in scores.items()},
@@ -382,6 +399,7 @@ def probe_training(train: pd.DataFrame, plan: pd.DataFrame, experiment: Experime
     rows = np.sort(train.index.get_indexer(subset.index))
     report = {"rows": len(rows), "trainable_parameters": experiment.trainable_parameters()}
     if experiment.adapters:
+        experiment.reset()  # the initial-feature check must not see an earlier run's adapters
         experiment.model.eval()
         with torch.inference_mode():
             start = time.perf_counter()
@@ -423,7 +441,8 @@ def main(argv: list[str] | None = None) -> int:
         sub.add_argument("--plan", type=Path, required=True)
         sub.add_argument("--features", type=Path, required=True)
         sub.add_argument("--output-dir", type=Path, required=True)
-        sub.add_argument("--model-path", type=Path)
+        sub.add_argument("--model-path", type=Path, required=True,
+                         help="Pinned snapshot; the control reads only its tokenizer")
         sub.add_argument("--device", default="cuda:0")
         sub.add_argument("--control", action="store_true", help="Adapters disabled; head only, on cached features")
     commands.choices["fold"].add_argument("--outer-fold", type=int, nargs="+", required=True)
@@ -436,8 +455,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     plan = pd.read_csv(args.plan, dtype={"id": str, "prompt_id": str}, keep_default_na=False)
     cached, _ = ensemble.load_archive(args.features, train, neural.FrozenConfig())
-    if not args.control and args.model_path is None:
-        raise SystemExit("--model-path is required unless --control is set")
     experiment = Experiment(train, cached, adapters=not args.control, model_path=args.model_path,
                             device="cpu" if args.control else args.device)
     if args.command == "probe":

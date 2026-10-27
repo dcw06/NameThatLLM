@@ -4,10 +4,24 @@ import json
 
 import numpy as np
 import pandas as pd
+import pytest
 from test_lora import tiny  # noqa: F401  (shared tiny-Qwen fixture)
 
 from ntl import ensemble, lora, lora_final
 from ntl.modeling import BaselineConfig
+from ntl.smoke import synthetic_frames
+
+
+def test_final_plan_must_carry_each_rows_own_prompt():
+    train, _ = synthetic_frames(n_prompts=10)
+    config = lora.AdapterConfig()
+    plan = lora_final.final_plan(train, config)
+    np.testing.assert_array_equal(lora_final._aligned_plan(train, plan, config), plan["inner"])
+    stale = plan.copy()
+    stale.loc[0, "prompt_id"] = "not-a-real-prompt"
+    stale.loc[0, "inner"] = 1 - stale.loc[0, "inner"]
+    with pytest.raises(ValueError, match="own prompt"):
+        lora_final._aligned_plan(train, stale, config)
 
 
 def test_final_pipeline_chooses_on_inner_rows_saves_and_scores_like_the_current_system(

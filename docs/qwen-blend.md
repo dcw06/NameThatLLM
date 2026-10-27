@@ -215,8 +215,8 @@ components are identical, and the training features are bit-identical. It scores
 The CPU therefore adds 2.2 points on the public leaderboard, at least as much as the
 1.5 points it adds in cross-validation. The shortfall against cross-validation comes
 from the Qwen component: 3.9 points for Qwen alone, against none for the CPU. The
-topic-grouped check below rules out topic shift as the cause. No leaderboard weight
-search was run.
+topic-grouped check below finds no sign that topic shift is the cause, though it cannot
+rule it out. No leaderboard weight search was run.
 
 **Interpretation.**
 - **Gain.** On the public leaderboard the blend gains 6.1 points over the CPU baseline,
@@ -277,10 +277,14 @@ CPU at every level. The analysis by topic distance, within the prompt folds, agr
 
 All three systems do better on familiar topics. Across prompts, however, the correlation
 between topic similarity and Qwen's gain over the CPU is essentially zero (Spearman
-0.008; 0.036 for the blend's gain). Topic shift therefore does not explain why the
-blend fell further below its cross-validation score than the CPU did. Under the
-strictest split the CPU also loses 2.7 points, whereas on the leaderboard it lost
-nothing.
+0.008; 0.036 for the blend's gain). Within the shifts these data can simulate, topic
+distance therefore shows no sign of explaining why the blend fell further below its
+cross-validation score than the CPU did. Under the strictest split the CPU also loses
+2.7 points, whereas on the leaderboard it lost nothing.
+
+This does not rule topic shift out. The topics are inferred from the training responses
+themselves, and the hidden test may shift further than holding out these clusters does,
+or along topic dimensions that they do not capture.
 
 **Same-prompt passages actively mislead both models.** Random row splits are not
 optimistic here; they are far worse (0.18 CPU, 0.26 Qwen). Each prompt has exactly one
@@ -295,9 +299,10 @@ stronger shift, the inner folds also move the weight toward Qwen.
 
 **Remaining explanations for the leaderboard gap.**
 - Sampling noise in the public subset.
+- A topic shift larger than, or different from, the held-out clusters simulated here.
 - A shift in the hidden test other than topic, such as length or formatting.
 
-Neither can be tested without more leaderboard evidence. Adapting the neural
+None can be tested without more leaderboard evidence. Adapting the neural
 representation with QLoRA did not help either; see [the QLoRA record](lora.md).
 
 Raw OOF scores, features and reports are excluded from Git, as are the audit scripts in

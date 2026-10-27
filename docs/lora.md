@@ -20,7 +20,8 @@ the last pooled block and cannot affect the features. The NF4 base weights stay 
 micro-batches of 4 and accumulates 4, an effective batch of 16.
 
 **Control.** The identical loop with adapters disabled: only the head trains, on the
-cached frozen features.
+cached frozen features. Batches are bucketed by the same token lengths, so the control
+trains on exactly the adapted model's batches.
 
 **Selection.**
 - **Inner folds.** Inside every outer training partition, two inner prompt folds choose
@@ -66,7 +67,8 @@ passages), but accuracy on held-out prompts falls after the first epoch. At this
 learning rate, the 26.7 M adapter parameters overfit a training split of about 1,080
 passages. The inner folds therefore reject training in four of five folds. The adapted
 model scores **0.4375** out-of-fold, against 0.4386 for the frozen head and 0.4541 for the
-current system. The matching adapters-disabled control (same grid) scores 0.4390.
+current system. The matching adapters-disabled control (same grid and batches) scores
+0.4345. The adapted model is +0.30 points over it (95% interval [−0.70, +1.33]).
 Run 1 is not a candidate.
 
 ## Run 2: learning rate {1e-5, 3e-5} × duration {0, ¼, ½, 1, 2} epochs
@@ -74,21 +76,22 @@ Run 1 is not a candidate.
 This pre-specified, gentler grid is chosen inside the same inner folds. The learning rate
 is constant after a 10-step warmup, so the checkpoint at `d` epochs equals training for
 exactly `d` epochs. Ties choose the shorter duration, then the smaller learning rate.
-The matching control (adapters disabled, same grid) scores **0.4323**. On near-flat inner
-curves, choosing among nine settings costs about half a point against the frozen head
-(0.4386).
+The matching control (adapters disabled, same grid and batches) scores **0.4379**,
+against 0.4386 for the frozen head.
 
 | Outer fold | Chosen setting | Inner: chosen / frozen | Outer: adapted | Outer: frozen head | Outer: control | `v` | Outer: blend | Outer: current |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | lr 1e-5, ¼ epoch | .391 / .389 | .448 | .444 | .443 | 0.25 | .470 | .476 |
-| 1 | lr 3e-5, ½ epoch | .386 / .385 | .419 | .435 | .433 | 0 | .426 | .426 |
-| 2 | lr 3e-5, ¼ epoch | .392 / .387 | .457 | .452 | .435 | 0.25 | .478 | .487 |
-| 3 | lr 3e-5, 1 epoch | .390 / .379 | .415 | .437 | .430 | 0.25 | .447 | .430 |
-| 4 | lr 3e-5, 1 epoch | .394 / .389 | .428 | .424 | .420 | 0 | .452 | .452 |
+| 0 | lr 1e-5, ¼ epoch | .391 / .389 | .448 | .444 | .446 | 0.25 | .470 | .476 |
+| 1 | lr 3e-5, ½ epoch | .386 / .385 | .419 | .435 | .431 | 0 | .426 | .426 |
+| 2 | lr 3e-5, ¼ epoch | .392 / .387 | .457 | .452 | .450 | 0.25 | .478 | .487 |
+| 3 | lr 3e-5, 1 epoch | .390 / .379 | .415 | .437 | .437 | 0.25 | .447 | .430 |
+| 4 | lr 3e-5, 1 epoch | .394 / .389 | .428 | .424 | .424 | 0 | .452 | .452 |
+
+The `v` and blend columns are for the adapted model.
 
 Every fold chose some training, but no inner curve is more than about one point above
-the frozen head. On held-out prompts, the adapted model gains 0.4–0.5 points in three folds
-and loses 1.6 and 2.2 in the other two. Each fold took 1.5–2 hours on one T4 (about
+the frozen head. On held-out prompts, the adapted model gains 0.4–0.6 points in three folds
+and loses 1.7 and 2.2 in the other two. Each fold took 1.5–2 hours on one T4 (about
 8.6 GPU-hours in total).
 
 **All 2,699 rows, paired prompt bootstrap (150 prompts, 10,000 resamples):**
@@ -98,10 +101,10 @@ and loses 1.6 and 2.2 in the other two. Each fold took 1.5–2 hours on one T4 (
 | Current CPU + frozen Qwen | **0.4541** | — | — |
 | Adapted Qwen alone | 0.4334 | −2.07 | [−3.51, −0.63] |
 | Adapted Qwen + current, inner `v` | 0.4545 | +0.04 | [−0.81, +0.89] |
-| Control alone | 0.4323 | −2.18 | [−3.52, −0.89] |
-| Control + current, inner `v` | 0.4530 | −0.11 | [−0.70, +0.48] |
+| Control alone | 0.4379 | −1.63 | [−2.96, −0.33] |
+| Control + current, inner `v` | 0.4560 | +0.19 | [−0.22, +0.56] |
 
-The adapted model is +0.11 points over its control (95% interval [−0.86, +1.11]): training
+The adapted model is −0.45 points against its control (95% interval [−1.26, +0.41]): training
 the adapters adds nothing measurable over training the head alone. The inner folds give the
 adapted model weight 0.25 in three folds and zero in two. The resulting blend agrees with
 the current system on 91% of rows and moves no class recall by more than 5 points
@@ -112,6 +115,7 @@ the current system on 91% of rows and moves no class recall by more than 5 point
 Neither run produces a candidate:
 - Adapted Qwen alone is 2 points below the current system.
 - The blend with the current system is +0.04 points, inside the noise.
+- The head-only control's blend (+0.19 points) is no credible gain either.
 
 The current system (45.41%, public 0.421) remains the validated winner and is already
 submitted, so there is no new submission. Two later steps apply only to a system that
@@ -128,6 +132,36 @@ The code for both is ready: `ntl.lora_final`, and `--mode final|submission` in
   penalty;
 - about 1,080 passages per inner training split.
 
-The flat inner curves suggest the binding constraint is the amount of labelled text per
-prompt split, not the adapter shape. Even so, a larger-data or different-objective variant
-remains untested.
+The inner curves are flat in run 2 and fall after the first epoch in run 1. They show that
+none of these recipes helps, but not why. Only the learning rate was varied, from 1e-5 to
+1e-4, and no rate helped. Other possible reasons were held fixed and remain untested:
+- too little labelled text per split;
+- the adapter shape;
+- the head's strong penalty.
+
+## Corrections after review
+
+Three defects in the first version of the pipeline are fixed, each with a regression test:
+- **Controls used different batches.** The first controls left every token length at zero,
+  so their batches were drawn without length bucketing. At fractional checkpoints they could
+  train on different passages from the adapted model. The control now checks that its
+  snapshot is the pinned revision, reads that tokenizer, and trains on the adapted model's
+  exact batches. Both controls were rerun, and the figures above use the reruns. The
+  superseded control scores were 0.4390 for run 1 and 0.4323 for run 2. Batch assignment
+  alone therefore moves a head-only score by about half a point (0.44 and 0.56 points).
+- **Zero-duration runs could keep earlier adapters.** A run with no training returned
+  before resetting the adapters. A zero-duration final fit made after inner training in the
+  same process could have saved trained adapters. The reported scores are unaffected: those
+  scores come from the cached frozen features, and the final fit was never run.
+- **Plan validation missed outer-fold leakage.** `validate_plan` now requires outer folds
+  0–4 and that every prompt sits in one outer fold. The prompt plan and the eight-topic plan
+  both pass.
+
+A second review of these fixes closed four related gaps, also with regression tests:
+- **Probe check.** The training probe's check of initial features now resets the adapters
+  first.
+- **Final plan.** The final plan must carry every row's own prompt.
+- **Comparison folds.** The comparison rejects a current-system OOF built on folds other
+  than the plan's outer folds. This matters for the eight-topic check, which must use the
+  topic-fold OOF (`artifacts/topic-cv/topics-8/blend/oof.parquet`).
+- **Run logs.** Fold logs record the snapshot revision.

@@ -49,6 +49,8 @@ def _aligned_plan(train: pd.DataFrame, plan: pd.DataFrame, config: lora.AdapterC
     inner = plan["inner"].to_numpy()
     if plan["inner"].isna().any() or set(inner) != set(range(config.inner_folds)):
         raise ValueError("Final plan must assign every row to an inner fold")
+    if (plan["prompt_id"] != train["prompt_id"]).any():
+        raise ValueError("Final plan must carry every row's own prompt")
     if plan.groupby("prompt_id")["inner"].nunique().max() != 1:
         raise ValueError("Final inner folds must keep prompts together")
     return inner.astype(int)

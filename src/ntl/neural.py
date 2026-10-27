@@ -56,8 +56,11 @@ class FrozenConfig:
             raise ValueError("Invalid token limit, batch size, or regularization")
 
 
-def validate_snapshot(directory: str | Path) -> dict:
-    """Reject mutable/wrong model inputs before loading any serialized weights."""
+def validate_snapshot(directory: str | Path, *, weights: bool = True) -> dict:
+    """Reject mutable/wrong model inputs before loading any serialized weights.
+
+    With weights=False, a tokenizer-only snapshot of the pinned revision is accepted.
+    """
     directory = Path(directory)
     manifest_path = directory / "snapshot_manifest.json"
     if not manifest_path.is_file():
@@ -67,9 +70,9 @@ def validate_snapshot(directory: str | Path) -> dict:
         manifest.get("schema_version") != 1
         or manifest.get("repo_id") != MODEL_ID
         or manifest.get("revision") != MODEL_REVISION
-        or manifest.get("includes_weights") is not True
+        or (weights and manifest.get("includes_weights") is not True)
     ):
-        raise ValueError("Snapshot must contain the pinned Qwen3-8B-Base weights")
+        raise ValueError(f"Snapshot must contain the pinned Qwen3-8B-Base {'weights' if weights else 'tokenizer'}")
     entries = manifest.get("files", [])
     if not entries:
         raise ValueError("Snapshot has no recorded files")
@@ -80,7 +83,7 @@ def validate_snapshot(directory: str | Path) -> dict:
         target = directory / relative
         if not target.is_file() or target.stat().st_size != item["size"]:
             raise ValueError(f"Snapshot file missing or size changed: {relative}")
-    if not any(str(item["path"]).endswith(".safetensors") for item in entries):
+    if weights and not any(str(item["path"]).endswith(".safetensors") for item in entries):
         raise ValueError("Expected safetensors model weights")
     architecture = json.loads((directory / "config.json").read_text())
     if (
@@ -114,6 +117,20 @@ def _versions() -> dict:
     return versions
 
 
+def load_tokenizer(model_path: str | Path):
+    """The snapshot's tokenizer as the frozen recipe configures it; reads no model weights."""
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        str(model_path), local_files_only=True, trust_remote_code=False, padding_side="right"
+    )
+    if tokenizer.pad_token_id is None:
+        if tokenizer.eos_token_id is None:
+            raise ValueError("Tokenizer has neither pad nor EOS token")
+        tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
 def load_backbone(model_path: str | Path, config: FrozenConfig) -> tuple:
     """Load the pinned tokenizer and truncated backbone exactly as the frozen recipe does.
 
@@ -123,7 +140,7 @@ def load_backbone(model_path: str | Path, config: FrozenConfig) -> tuple:
     manifest = validate_snapshot(model_path)
     try:
         import torch
-        from transformers import AutoConfig, AutoModel, AutoTokenizer, BitsAndBytesConfig
+        from transformers import AutoConfig, AutoModel, BitsAndBytesConfig
     except ImportError as exc:
         raise RuntimeError("Install the neural extra; NF4 also needs the Linux gpu extra") from exc
     device = config.device
@@ -137,13 +154,7 @@ def load_backbone(model_path: str | Path, config: FrozenConfig) -> tuple:
     if device.startswith("cuda"):
         torch.cuda.manual_seed_all(config.seed)
         _initialize_cuda_memory_stats(torch, device)
-    tokenizer = AutoTokenizer.from_pretrained(
-        str(model_path), local_files_only=True, trust_remote_code=False, padding_side="right"
-    )
-    if tokenizer.pad_token_id is None:
-        if tokenizer.eos_token_id is None:
-            raise ValueError("Tokenizer has neither pad nor EOS token")
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = load_tokenizer(model_path)
     architecture = AutoConfig.from_pretrained(
         str(model_path), local_files_only=True, trust_remote_code=False
     )
