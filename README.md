@@ -21,6 +21,8 @@ The [frozen embedding comparison](docs/frozen-gemini.md) evaluates StyleDistance
 Qwen3-Embedding-0.6B with logistic regression and nested prompt-grouped validation.
 The [four-version CPU specialist](docs/cpu-gemini-specialist.md) tests task specialization
 and a nested StyleDistance blend, including end-to-end scores on all 2,699 rows.
+The [CPU–Qwen blend](docs/qwen-blend.md) validates frozen Qwen3-8B-Base features on all
+18 classes, a nested score blend, its audit, and the offline submission notebooks.
 
 ## Local setup
 
@@ -96,6 +98,12 @@ nested StyleDistance blend 51.75%. Both are within prompt-resampling noise of th
 reference, and end-to-end grouped balanced accuracy moves only from 0.359667 to 0.361519
 and 0.361148. A training probe shows that the DeBERTa loop fits a small subset and
 reproduces the flat loss without AMP: the recipe underfits rather than failing to train.
-Qwen3-8B-Base model ranking, T4 memory use, runtime, and LoRA training remain unmeasured.
+Frozen Qwen3-8B-Base features with an 18-class head reach 0.4386 grouped balanced
+accuracy. The nested CPU–Qwen blend (`w = 0.25`) reaches 0.4541, +9.45 points over the
+recorded CPU reference across all five folds. Extraction takes 509 s for 2,699 passages
+on one T4 at 5.25 GB of peak memory. Its offline submission (57685450) scored **0.421**
+public balanced accuracy, against 0.360 for the CPU baseline; the cross-validation gap is
+discussed in [the blend record](docs/qwen-blend.md#submission-result). LoRA training
+remains unmeasured.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

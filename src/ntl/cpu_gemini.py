@@ -24,13 +24,13 @@ from threadpoolctl import threadpool_limits
 
 from .constants import LABELS
 from .data import read_train
+from .folds import inner_prompt_splits
 from .frozen_gemini import (
     FrozenGeminiConfig,
     _aligned_probabilities,
     _pipeline,
     _validate_frame,
     embeddings_sha256,
-    inner_prompt_splits,
     load_feature_archive,
 )
 from .gemini import (
@@ -84,7 +84,8 @@ def _select_blend(
     config: SpecialistConfig, outer_fold: int,
 ) -> tuple[float, float, dict]:
     """Choose readout C and weight from inner prompt folds; no outer rows are passed in."""
-    splits, split_metadata = inner_prompt_splits(targets, prompts, config.readout, outer_fold)
+    splits, split_metadata = inner_prompt_splits(targets, prompts, config.readout.inner_folds,
+                                                 config.readout.seed + outer_fold)
     cpu, readout = [], {C: [] for C in config.readout.C_grid}
     for fit, valid in splits:
         cpu.append(_cpu_probabilities(texts[fit], targets[fit], texts[valid], config.cpu))

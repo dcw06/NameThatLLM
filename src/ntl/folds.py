@@ -81,6 +81,27 @@ def validate_fold_manifest(train: pd.DataFrame, manifest: pd.DataFrame, metadata
             raise ValueError(f"Fold {fold} does not include all labels in both training and validation")
 
 
+def inner_prompt_splits(
+    targets: np.ndarray, prompts: np.ndarray, n_splits: int, seed: int,
+) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[dict]]:
+    """Prompt-grouped folds inside one outer fitting partition; shared by every inner selection."""
+    splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    # The splitter reads only the sample count from X, so readouts of any features share splits.
+    splits = list(splitter.split(np.zeros((len(targets), 1)), targets, groups=prompts))
+    classes = set(targets.tolist())
+    split_metadata = []
+    for inner_fold, (fit, valid) in enumerate(splits):
+        fit_groups, valid_groups = set(prompts[fit]), set(prompts[valid])
+        if fit_groups & valid_groups:
+            raise ValueError("Prompt leakage in inner selection folds")
+        if set(targets[fit].tolist()) != classes or set(targets[valid].tolist()) != classes:
+            raise ValueError("Every inner fitting/validation partition must contain every class")
+        split_metadata.append({"inner_fold": inner_fold, "training_rows": len(fit),
+                               "validation_rows": len(valid), "training_prompts": sorted(fit_groups),
+                               "validation_prompts": sorted(valid_groups)})
+    return splits, split_metadata
+
+
 def save_fold_manifest(manifest: pd.DataFrame, metadata: dict, directory: str | Path) -> Path:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)

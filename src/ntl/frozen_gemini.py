@@ -22,12 +22,12 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import balanced_accuracy_score
-from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from threadpoolctl import threadpool_limits
 
 from .data import read_train
+from .folds import inner_prompt_splits
 from .gemini import (
     GEMINI_LABELS,
     OFFICIAL_BASELINE_COUNTS,
@@ -224,33 +224,13 @@ def _aligned_probabilities(pipeline: Pipeline, features: np.ndarray) -> np.ndarr
     return values
 
 
-def inner_prompt_splits(
-    fitting_targets: np.ndarray, fitting_prompts: np.ndarray, config: FrozenGeminiConfig, outer_fold: int,
-) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[dict]]:
-    """Inner prompt folds of one outer fitting partition; shared by every inner selection."""
-    splitter = StratifiedGroupKFold(n_splits=config.inner_folds, shuffle=True,
-                                    random_state=config.seed + outer_fold)
-    # The splitter reads only the sample count from X, so readouts of any features share splits.
-    splits = list(splitter.split(np.zeros((len(fitting_targets), 1)), fitting_targets, groups=fitting_prompts))
-    split_metadata = []
-    for inner_fold, (fit, valid) in enumerate(splits):
-        fit_groups, valid_groups = set(fitting_prompts[fit]), set(fitting_prompts[valid])
-        if fit_groups & valid_groups:
-            raise ValueError("Prompt leakage in inner regularization folds")
-        if set(fitting_targets[fit]) != set(range(4)) or set(fitting_targets[valid]) != set(range(4)):
-            raise ValueError("Every inner fitting/validation partition must contain all four Gemini classes")
-        split_metadata.append({"inner_fold": inner_fold, "training_rows": len(fit),
-                               "validation_rows": len(valid), "training_prompts": sorted(fit_groups),
-                               "validation_prompts": sorted(valid_groups)})
-    return splits, split_metadata
-
-
 def _select_regularization(
     fitting_features: np.ndarray, fitting_targets: np.ndarray, fitting_prompts: np.ndarray,
     config: FrozenGeminiConfig, outer_fold: int,
 ) -> tuple[float, dict]:
     """No outer-validation features, labels or scores enter this selection API."""
-    splits, split_metadata = inner_prompt_splits(fitting_targets, fitting_prompts, config, outer_fold)
+    splits, split_metadata = inner_prompt_splits(fitting_targets, fitting_prompts,
+                                                 config.inner_folds, config.seed + outer_fold)
     candidates = []
     for C in sorted(config.C_grid):
         scores = []

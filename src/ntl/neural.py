@@ -26,6 +26,7 @@ from threadpoolctl import threadpool_limits
 from .constants import LABELS
 from .data import fingerprint_frame, read_test, read_train, write_submission
 from .folds import build_fold_manifest, load_fold_manifest, save_fold_manifest
+from .gemini import _initialize_cuda_memory_stats
 
 MODEL_ID = "Qwen/Qwen3-8B-Base"
 MODEL_REVISION = "49e3418fbbbca6ecbdf9608b4d22e5a407081db4"
@@ -136,7 +137,7 @@ def extract_features(
     torch.manual_seed(config.seed)
     if device.startswith("cuda"):
         torch.cuda.manual_seed_all(config.seed)
-        torch.cuda.reset_peak_memory_stats(device)
+        _initialize_cuda_memory_stats(torch, device)
     started = time.perf_counter()
     tokenizer = AutoTokenizer.from_pretrained(
         str(model_path), local_files_only=True, trust_remote_code=False, padding_side="right"
