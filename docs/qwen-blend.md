@@ -221,5 +221,75 @@ It completed with public balanced accuracy **0.421**. The CPU baseline (submissi
   One leaderboard number cannot separate these explanations.
 - **Final standings.** The private score is unavailable until the competition ends.
 
+## Topic-grouped validation
+
+**Question.** Is the frozen Qwen head more sensitive to topic than the CPU classifier?
+If so, that would explain why the blend lost more against its cross-validation score
+than the CPU did.
+
+**Method.** `ntl.topic_cv` reruns the identical nested blend under splits of increasing
+strictness.
+- **Topics.** The data have no prompt text, so each prompt's topic is the content-word
+  TF-IDF of its 18 responses. No labels are used. Prompts are grouped with k-means on
+  60 LSA components.
+- **Holding out.** Whole groups are held out in both the outer folds and the inner
+  weight-selection folds.
+- **Coarsest level (8 groups).** The groups are subject areas: history and scribes, mind
+  and self, sound and senses, Earth and chemistry, mathematics, society, the cosmos, and
+  cell biology.
+- **Topic distance.** "Nearest similarity" is the median, over prompts, of the TF-IDF
+  cosine between a held-out prompt and its most similar training prompt.
+
+```sh
+PYTHONPATH=src .venv/bin/python -m ntl.topic_cv --train data/raw/train.csv \
+  --features artifacts/qwen-validation-results/features/qwen3-8b-base-train.npz \
+  --output-dir artifacts/topic-cv --k 30 15 8
+```
+
+| Split | Held-out groups | Nearest similarity | CPU | Qwen | Blend | Qwen − CPU | Blend − CPU (95% interval) | Selected `w` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| Random rows | 2,699 | 1.000 | 0.184 | 0.262 | 0.263 | +7.8 | +7.9 [+6.1, +9.6] | 1, .75, .75, 1, 1 |
+| Prompts (original) | 150 | 0.181 | 0.363 | 0.439 | 0.454 | +7.5 | +9.1 [+7.4, +10.8] | .25, .25, .25, .25, .5 |
+| 30 topics | 30 | 0.155 | 0.350 | 0.429 | 0.437 | +7.9 | +8.6 [+6.7, +10.7] | .5, .25, .25, .25, .25 |
+| 15 topics | 15 | 0.155 | 0.353 | 0.428 | 0.446 | +7.5 | +9.3 [+6.7, +11.9] | .25, .25, .25, .5, .25 |
+| 8 subject areas | 8 | 0.147 | 0.337 | 0.412 | 0.416 | +7.5 | +7.9 [+4.8, +11.8] | .5, .5, .25, 1, .5 |
+
+The prompt split reproduces the main experiment exactly.
+
+**Qwen's advantage does not shrink with topic distance.** Holding out whole subject
+areas costs every system 2.7–3.9 points. Qwen keeps a 7.5–7.9-point lead over the
+CPU at every level. The analysis by topic distance, within the prompt folds, agrees:
+
+| Held-out prompts by nearest-training similarity | CPU | Qwen | Blend |
+| --- | ---: | ---: | ---: |
+| Least similar third (median 0.143) | 0.333 | 0.391 | 0.409 |
+| Middle third (0.181) | 0.363 | 0.459 | 0.471 |
+| Most similar third (0.252) | 0.394 | 0.466 | 0.483 |
+
+All three systems do better on familiar topics. Across prompts, however, the correlation
+between topic similarity and Qwen's gain over the CPU is essentially zero (Spearman
+0.008; 0.036 for the blend's gain). Topic shift therefore does not explain why the
+blend fell further below its cross-validation score than the CPU did. Under the
+strictest split the CPU also loses 2.7 points, whereas on the leaderboard it lost
+nothing.
+
+**Same-prompt passages actively mislead both models.** Random row splits are not
+optimistic here; they are far worse (0.18 CPU, 0.26 Qwen). Each prompt has exactly one
+response per model, so the other responses to the same prompt are guaranteed to carry
+other labels, and topic similarity pulls predictions toward them. The CPU's leaderboard
+score (0.360) matches its prompt-grouped score, not this collapse. That indicates the
+hidden test uses new prompts and that prompt-grouped validation is the right protocol.
+
+**What the blend adds over Qwen alone is fragile.** It is +1.5 points with prompt
+folds but +0.4 with subject-area folds, where one fold is worse than Qwen alone. Under
+stronger shift, the inner folds also move the weight toward Qwen.
+
+**Remaining explanations for the leaderboard gap.**
+- Sampling noise in the public subset.
+- A shift in the hidden test other than topic, such as length or formatting.
+
+Neither can be tested without more leaderboard evidence. The strongest next lever
+remains the neural representation itself, for example LoRA adaptation.
+
 Raw OOF scores, features and reports are excluded from Git, as are the audit scripts in
 the session scratch directory.

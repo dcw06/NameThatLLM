@@ -103,7 +103,9 @@ accuracy. The nested CPU–Qwen blend (`w = 0.25`) reaches 0.4541, +9.45 points 
 recorded CPU reference across all five folds. Extraction takes 509 s for 2,699 passages
 on one T4 at 5.25 GB of peak memory. Its offline submission (57685450) scored **0.421**
 public balanced accuracy, against 0.360 for the CPU baseline; the cross-validation gap is
-discussed in [the blend record](docs/qwen-blend.md#submission-result). LoRA training
-remains unmeasured.
+discussed in [the blend record](docs/qwen-blend.md#submission-result). A
+[topic-grouped check](docs/qwen-blend.md#topic-grouped-validation) finds Qwen's 7.5-point
+lead over the CPU unchanged when whole subject areas are held out, so topic shift does not
+explain that gap. LoRA training remains unmeasured.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
