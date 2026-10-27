@@ -30,6 +30,8 @@ from .frozen_gemini import load_feature_archive, save_feature_archive
 from .modeling import BaselineConfig, aligned_probabilities, build_pipeline
 
 RECORDED_REFERENCE_BALANCED_ACCURACY = 0.359667
+# neural.validate_snapshot pins the backbone's hidden width.
+HIDDEN_SIZE = 4096
 
 
 @dataclass(frozen=True)
@@ -76,8 +78,7 @@ def extract_archive(frame: pd.DataFrame, model_path: str | Path, output: str | P
     if output.exists():
         raise ValueError("Feature output already exists; preserve it or choose another output path")
     features, profile = neural.extract_features(frame["text"].tolist(), model_path, config)
-    # validate_snapshot fixes the pinned backbone's hidden width at 4,096.
-    if features.shape != (len(frame), 4096 * len(config.pool_layers)):
+    if features.shape != (len(frame), HIDDEN_SIZE * len(config.pool_layers)):
         raise ValueError("Unexpected frozen Qwen feature shape")
     metadata = {"model_id": neural.MODEL_ID, "model_revision": neural.MODEL_REVISION,
                 "encoder_frozen": True, "feature_options": feature_options(config), "profile": profile}

@@ -114,10 +114,11 @@ def _versions() -> dict:
     return versions
 
 
-def extract_features(
-    texts: list[str], model_path: str | Path, config: FrozenConfig
-) -> tuple[np.ndarray, dict]:
-    """Read only a local pinned snapshot, with no network fallback or remote code."""
+def load_backbone(model_path: str | Path, config: FrozenConfig) -> tuple:
+    """Load the pinned tokenizer and truncated backbone exactly as the frozen recipe does.
+
+    Returns (tokenizer, model, device, dtype, manifest); shared by extraction and adaptation.
+    """
     config.validate()
     manifest = validate_snapshot(model_path)
     try:
@@ -132,13 +133,10 @@ def extract_features(
         raise ValueError("CUDA requested but unavailable")
     if config.quantization == "nf4" and not device.startswith("cuda"):
         raise ValueError("NF4 requires a CUDA GPU; use --quantization none for CPU diagnostics")
-    if not texts or any(not isinstance(text, str) or not text.strip() for text in texts):
-        raise ValueError("Expected nonempty passage strings")
     torch.manual_seed(config.seed)
     if device.startswith("cuda"):
         torch.cuda.manual_seed_all(config.seed)
         _initialize_cuda_memory_stats(torch, device)
-    started = time.perf_counter()
     tokenizer = AutoTokenizer.from_pretrained(
         str(model_path), local_files_only=True, trust_remote_code=False, padding_side="right"
     )
@@ -172,6 +170,19 @@ def extract_features(
     # AutoModel loads Qwen3Model, avoiding the unused language-model vocabulary head.
     # num_hidden_layers controls instantiation, so discarded upper blocks never reside on GPU.
     model = AutoModel.from_pretrained(str(model_path), **load_args).eval()
+    return tokenizer, model, device, dtype, manifest
+
+
+def extract_features(
+    texts: list[str], model_path: str | Path, config: FrozenConfig
+) -> tuple[np.ndarray, dict]:
+    """Read only a local pinned snapshot, with no network fallback or remote code."""
+    if not texts or any(not isinstance(text, str) or not text.strip() for text in texts):
+        raise ValueError("Expected nonempty passage strings")
+    import torch
+
+    started = time.perf_counter()
+    tokenizer, model, device, dtype, manifest = load_backbone(model_path, config)
     chunks = []
     token_lengths: list[int] = []
     try:

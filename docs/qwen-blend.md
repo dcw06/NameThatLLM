@@ -207,7 +207,16 @@ It completed with public balanced accuracy **0.421**. The CPU baseline (submissi
 | System | Grouped CV | Public leaderboard | Gap |
 | --- | ---: | ---: | ---: |
 | CPU baseline | 0.3597 | 0.360 | +0.000 |
+| Qwen only, `w = 1` (diagnostic, submission 57688014) | 0.4386 | 0.399 | −0.040 |
 | CPU–Qwen blend, `w = 0.25` | 0.4541 | 0.421 | −0.033 |
+
+**The Qwen-only diagnostic.** It changes only the blend weight: the notebook and fitted
+components are identical, and the training features are bit-identical. It scores 0.399.
+The CPU therefore adds 2.2 points on the public leaderboard, at least as much as the
+1.5 points it adds in cross-validation. The shortfall against cross-validation comes
+from the Qwen component: 3.9 points for Qwen alone, against none for the CPU. The
+topic-grouped check below rules out topic shift as the cause. No leaderboard weight
+search was run.
 
 **Interpretation.**
 - **Gain.** On the public leaderboard the blend gains 6.1 points over the CPU baseline,
@@ -288,8 +297,8 @@ stronger shift, the inner folds also move the weight toward Qwen.
 - Sampling noise in the public subset.
 - A shift in the hidden test other than topic, such as length or formatting.
 
-Neither can be tested without more leaderboard evidence. The strongest next lever
-remains the neural representation itself, for example LoRA adaptation.
+Neither can be tested without more leaderboard evidence. Adapting the neural
+representation with QLoRA did not help either; see [the QLoRA record](lora.md).
 
 Raw OOF scores, features and reports are excluded from Git, as are the audit scripts in
 the session scratch directory.

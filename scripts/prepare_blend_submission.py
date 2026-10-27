@@ -123,7 +123,8 @@ def build_inputs(username: str, output_root: str | Path) -> list[dict]:
 
 
 def build_submission(username: str, output_dir: str | Path, recipe_path: str | Path,
-                     model_kernel: str, dependency_kernel: str) -> dict:
+                     model_kernel: str, dependency_kernel: str, *, slug: str = SUBMISSION_SLUG,
+                     title: str = "Name That LLM Qwen blend submission") -> dict:
     """GPU notebook with Internet off: offline install, full refit, blend, validated submission."""
     _pinned(model_kernel, "Model kernel")
     _pinned(dependency_kernel, "Dependency kernel")
@@ -176,7 +177,9 @@ def build_submission(username: str, output_dir: str | Path, recipe_path: str | P
         4,000-row predict time on this hardware; `blend-model/fit.json` records the fit.
         '''),
     ]
-    metadata = _metadata(username, SUBMISSION_SLUG, "Name That LLM Qwen blend submission", gpu=True,
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", slug):
+        raise ValueError("Notebook slug must use lowercase letters, digits, and hyphens")
+    metadata = _metadata(username, slug, title, gpu=True,
                          internet=False, kernel_sources=[model_kernel, dependency_kernel])
     return _write(Path(output_dir).expanduser().absolute(), cells, metadata, exporter, {
         "recipe_sha256": hashlib.sha256(recipe_text.encode()).hexdigest(), "weight": recipe["weight"],
@@ -195,13 +198,16 @@ def main(argv: list[str] | None = None) -> int:
     submission.add_argument("--recipe", type=Path, default=ROOT / "artifacts" / "qwen-blend" / "recipe.json")
     submission.add_argument("--model-kernel", required=True, help="owner/slug/version")
     submission.add_argument("--dependency-kernel", required=True, help="owner/slug/version")
+    submission.add_argument("--slug", default=SUBMISSION_SLUG)
+    submission.add_argument("--title", default="Name That LLM Qwen blend submission")
     args = parser.parse_args(argv)
     try:
         if args.command == "inputs":
             result = build_inputs(args.username, args.output_root)
         else:
             result = build_submission(args.username, args.output_dir, args.recipe,
-                                      args.model_kernel, args.dependency_kernel)
+                                      args.model_kernel, args.dependency_kernel,
+                                      slug=args.slug, title=args.title)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, indent=2))
