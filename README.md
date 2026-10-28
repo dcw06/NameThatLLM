@@ -29,6 +29,8 @@ The [18-class StyleDistance head](docs/styledistance-head.md) tests whether that
 helps the other classes, blended after the specialist.
 The [Gemini pair specialist](docs/gemini-pair.md) tests whether training on Gemini 3.7 and
 3.8 Flash alone recovers the system's errors between the two.
+The [adapted StyleDistance experiment](docs/styledistance-adapt.md) fine-tunes StyleDistance's
+top four layers on the Claude and GLM passages and mixes it into the Claude–GLM specialist.
 
 ## Local setup
 
@@ -128,5 +130,9 @@ interval [−0.67, +0.41]): it gains a little on GPT-5.6 Terra and loses more el
 A binary Gemini 3.7 / 3.8 Flash specialist changes nothing (0.00 points, 95% interval
 [−0.37, +0.41]). Neither CPU nor frozen-Qwen features separate the pair better than the
 system's own forced choice (54–61% against 59.7%).
+Adapting StyleDistance's top four layers on the Claude and GLM passages, mixed into the
+Claude–GLM specialist, does not help either (−0.19 points, 95% interval [−0.41, +0.04]).
+On held-out passages the adapted embeddings separate those seven classes no better than
+the frozen ones.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
