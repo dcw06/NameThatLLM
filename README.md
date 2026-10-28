@@ -23,6 +23,8 @@ The [four-version CPU specialist](docs/cpu-gemini-specialist.md) tests task spec
 and a nested StyleDistance blend, including end-to-end scores on all 2,699 rows.
 The [CPU–Qwen blend](docs/qwen-blend.md) validates frozen Qwen3-8B-Base features on all
 18 classes, a nested score blend, its audit, and the offline submission notebooks.
+The [Claude–GLM specialist](docs/claude-glm.md) redistributes the blend's probability on the
+five Claude and two GLM classes, using frozen Qwen plus StyleDistance features.
 
 ## Local setup
 
@@ -110,5 +112,11 @@ shift explains the gap, though the check cannot rule it out. [QLoRA adaptation](
 does not improve on the current system. The adapted model alone reaches 0.4334, no better than
 its adapters-disabled control (0.4379). Its nested blend with the current system reaches 0.4545
 (+0.04 points, 95% interval [−0.81, +0.89]), so the current system stays.
+A [Claude–GLM specialist](docs/claude-glm.md) on frozen Qwen plus StyleDistance features
+raises grouped balanced accuracy to 0.4701 (+1.60 points, 95% interval [+0.78, +2.41]). It
+improves every fold and all seven of its classes, and its Qwen-only control gains nothing.
+With whole subject areas held out, it adds +0.74 points. Its offline submission (57721458)
+scored **0.429** public balanced accuracy, +0.8 points over the blend: about the gain that
+the topic-held-out check predicted.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
