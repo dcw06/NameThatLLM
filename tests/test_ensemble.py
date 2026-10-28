@@ -105,6 +105,22 @@ def test_prompt_bootstrap_reports_balanced_accuracy_change_and_paired_counts():
     assert better["delta_95_interval"][0] >= 0 and better["fraction_delta_at_most_zero"] < 1
 
 
+def test_prompt_bootstrap_counts_exact_ties_as_zero_despite_float_rounding():
+    # Three classes of ten passages in two prompts; every changed passage is in prompt "a".
+    # The second system gains 1 and 2 passages in two classes and loses 3 in the third, so
+    # every resample changes per-class recall by k/10 + 2k/10 - 3k/10 = 0 exactly, which
+    # floating point alone would report as up to about 4e-17.
+    truth = np.repeat([0, 1, 2], 10)
+    prompts = np.tile(np.repeat(["a", "b"], 5), 3)
+    first, second = truth.copy(), truth.copy()
+    first[[0, 10, 11]] = 2
+    second[[20, 21, 22]] = 0
+    result = ensemble.prompt_bootstrap(truth, first, second, prompts, 1000, 0)
+    assert result["balanced_accuracy_delta"] == 0.0
+    assert result["delta_95_interval"] == [0.0, 0.0] and result["fraction_delta_at_most_zero"] == 1.0
+    assert result["second_only_correct"] == result["first_only_correct"] == 3
+
+
 def test_archive_records_and_enforces_the_frozen_recipe(official, tmp_path, monkeypatch):
     train, features, _, _ = official
     config = neural.FrozenConfig()

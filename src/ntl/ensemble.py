@@ -28,7 +28,7 @@ from .data import fingerprint_frame, read_train, write_submission
 from .folds import inner_prompt_splits, load_fold_manifest
 from .frozen_gemini import load_feature_archive, save_feature_archive
 from .modeling import BaselineConfig, aligned_probabilities, build_pipeline
-from .selection import first_best
+from .selection import TIE_TOLERANCE, first_best
 
 RECORDED_REFERENCE_BALANCED_ACCURACY = 0.359667
 # neural.validate_snapshot pins the backbone's hidden width.
@@ -154,7 +154,9 @@ def _system_metrics(truth: np.ndarray, predictions: np.ndarray, folds: np.ndarra
 
 def prompt_bootstrap(truth: np.ndarray, first: np.ndarray, second: np.ndarray, prompts: np.ndarray,
                      samples: int, seed: int) -> dict:
-    """Balanced-accuracy change (second - first) when whole prompts are resampled."""
+    """Balanced-accuracy change (second - first) when whole prompts are resampled. A change
+    within float rounding of zero counts as exactly zero: averaging per-class fractions turns
+    an exact tie into a value of about 1e-17 of either sign."""
     _, prompt_index = np.unique(prompts, return_inverse=True)
     shape = (prompt_index.max() + 1, len(LABELS))
     totals, first_correct, second_correct = (np.zeros(shape) for _ in range(3))
@@ -167,7 +169,9 @@ def prompt_bootstrap(truth: np.ndarray, first: np.ndarray, second: np.ndarray, p
     denominator = weights @ totals
     with np.errstate(invalid="ignore", divide="ignore"):
         deltas = np.nanmean((weights @ second_correct - weights @ first_correct) / denominator, axis=1)
+    deltas[np.abs(deltas) <= TIE_TOLERANCE] = 0.0
     observed = balanced_accuracy_score(truth, second) - balanced_accuracy_score(truth, first)
+    observed = 0.0 if abs(observed) <= TIE_TOLERANCE else observed
     return {"balanced_accuracy_delta": float(observed), "samples": samples, "seed": seed,
             "prompts": int(shape[0]),
             "delta_95_interval": [float(np.quantile(deltas, 0.025)), float(np.quantile(deltas, 0.975))],

@@ -396,9 +396,12 @@ It found no defect in the module.
   tolerance, however, a small numerical change, such as standardizing in float64,
   can break the fold-3 tie toward epoch 3 at `a = ¼`.
 - **The bootstrap's fraction at or below zero.** The shared bootstrap's reported
-  fraction is slightly low. Resamples whose change is exactly zero can come out a
-  little above zero in floating point, about 10⁻¹⁹. The exact fraction is 97.35%
-  against the recorded 96.9%. The interval and the decision are unaffected.
+  fraction was slightly low. Resamples whose change is exactly zero could come out a
+  little above zero in floating point, about 10⁻¹⁹. The exact fraction is 97.35%,
+  against the 96.9% recorded in `comparison.json`. The interval and the decision
+  are unaffected. The bootstrap now counts such ties as zero. Rechecking every
+  recorded comparison changed no interval or decision, only two quoted fractions: the
+  [Gemini pair](gemini-pair.md) and [18-class head](styledistance-head.md) records.
 
 ### Decision
 

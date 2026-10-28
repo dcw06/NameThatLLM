@@ -97,8 +97,10 @@ passages, and the specialist's `s` by fold (¼, ¼, ½, ¼, ¼) is the incumbent
 | Incumbent: blend + Claude–GLM specialist | 0.4701 | — | — |
 | + Gemini pair specialist | 0.4701 | 0.00 | [−0.37, +0.41] |
 
-The resamples put the change at or below zero 52% of the time. The candidate gains 14
-passages and loses 14.
+The resamples put the change at or below zero 54% of the time. The candidate gains 14
+passages and loses 14. (`comparison.json` records 52%. It was written before the shared
+bootstrap counted exactly tied resamples as zero rather than as rounding noise of either
+sign.)
 
 **Selection.** The inner folds chose a CPU specialist in every fold, by small margins over
 the incumbent. Those margins did not carry over to the held-out folds:

@@ -79,9 +79,11 @@ passages, and the specialist's `s` by fold (¼, ¼, ½, ¼, ¼) is the incumbent
 | + Qwen + StyleDistance head (candidate) | 0.4690 | −0.11 | [−0.67, +0.41] | 0, 0, ¼, 0, ¼ |
 | + Qwen-only head (control) | 0.4701 | 0.00 | — | 0, 0, 0, 0, 0 |
 
-The candidate's resamples put the change at or below zero 63% of the time. By fold the
-change is 0.0, 0.0, −0.9, 0.0 and +0.4 points. Only two folds chose the head: fold 4,
-whose inner folds preferred `b = ¼` by 0.83 points, and fold 2, by 0.05.
+The candidate's resamples put the change at or below zero 64% of the time.
+(`comparison.json` records 63%, from before the shared bootstrap counted exactly tied
+resamples as zero.) By fold the change is 0.0, 0.0, −0.9, 0.0 and +0.4 points. Only two
+folds chose the head: fold 4, whose inner folds preferred `b = ¼` by 0.83 points, and
+fold 2, by 0.05.
 
 **The control is never selected.** In every outer fold, the inner mean scores the Qwen-only
 head below the incumbent at every `b > 0`. More weight on the Qwen head already in the
