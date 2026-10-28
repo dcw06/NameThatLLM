@@ -41,6 +41,7 @@ from .gemini import (
     prepare_gemini_evaluation,
 )
 from .modeling import BaselineConfig, build_pipeline
+from .selection import first_best
 
 CONTROL = "cpu-specialist"
 BLEND = "cpu-styledistance-blend"
@@ -101,7 +102,8 @@ def _select_blend(
             candidates.append({"C": C, "weight": weight, "inner_balanced_accuracy": scores,
                                "mean_inner_balanced_accuracy": float(np.mean(scores))})
     # Ties prefer the smaller StyleDistance weight (closer to the control), then smaller C.
-    best = min(candidates, key=lambda item: (-item["mean_inner_balanced_accuracy"], item["weight"], item["C"]))
+    best = first_best(sorted(candidates, key=lambda item: (item["weight"], item["C"])),
+                      lambda item: item["mean_inner_balanced_accuracy"])
     control_scores = [float(balanced_accuracy_score(targets[valid], p_cpu.argmax(axis=1)))
                       for (_, valid), p_cpu in zip(splits, cpu, strict=True)]
     return best["C"], best["weight"], {

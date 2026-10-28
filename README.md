@@ -25,6 +25,8 @@ The [CPU–Qwen blend](docs/qwen-blend.md) validates frozen Qwen3-8B-Base featur
 18 classes, a nested score blend, its audit, and the offline submission notebooks.
 The [Claude–GLM specialist](docs/claude-glm.md) redistributes the blend's probability on the
 five Claude and two GLM classes, using frozen Qwen plus StyleDistance features.
+The [18-class StyleDistance head](docs/styledistance-head.md) tests whether that signal also
+helps the other classes, blended after the specialist.
 
 ## Local setup
 
@@ -118,6 +120,8 @@ improves every fold and all seven of its classes, and its Qwen-only control gain
 With whole subject areas held out, it adds +0.74 points. Its offline submission (57721458)
 scored **0.429** public balanced accuracy, +0.8 points over the blend: about the gain that
 the topic-held-out check predicted. Adding frozen LUAR-MUD or LUSR features to that specialist
-does not help (−0.04 points, 95% interval [−0.70, +0.63]), so neither is promoted.
+does not help (−0.04 points, 95% interval [−0.70, +0.63]), so neither is promoted. Nor does
+an 18-class Qwen + StyleDistance head blended after the specialist (−0.11 points, 95%
+interval [−0.67, +0.41]): it gains a little on GPT-5.6 Terra and loses more elsewhere.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

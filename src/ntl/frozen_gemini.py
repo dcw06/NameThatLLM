@@ -35,6 +35,7 @@ from .gemini import (
     _save_class_reports,
     prepare_gemini_evaluation,
 )
+from .selection import first_best
 
 
 @dataclass(frozen=True)
@@ -241,7 +242,7 @@ def _select_regularization(
             scores.append(float(balanced_accuracy_score(fitting_targets[valid], probabilities.argmax(axis=1))))
         candidates.append({"C": C, "inner_balanced_accuracy": scores,
                            "mean_inner_balanced_accuracy": float(np.mean(scores))})
-    best = min(candidates, key=lambda item: (-item["mean_inner_balanced_accuracy"], item["C"]))
+    best = first_best(candidates, lambda item: item["mean_inner_balanced_accuracy"])  # ascending C
     return best["C"], {"outer_fold": outer_fold, "selected_C": best["C"], "candidates": candidates,
                        "inner_splits": split_metadata,
                        "selection_metric": "Unweighted mean inner-fold balanced accuracy; ties choose smaller C."}

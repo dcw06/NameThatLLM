@@ -21,6 +21,7 @@ from . import ensemble, neural
 from .constants import LABELS
 from .data import read_train
 from .lora import AdapterConfig, validate_plan
+from .selection import first_best
 
 PROBABILITIES = [f"probability::{label}" for label in LABELS]
 WEIGHTS = (0.0, 0.25, 0.5, 0.75, 1.0)
@@ -82,7 +83,7 @@ def choose_weight(train: pd.DataFrame, current: dict, inner: pd.DataFrame, outer
             scores[weight].append(float(balanced_accuracy_score(truth[valid], blended.argmax(axis=1))))
     means = {weight: float(np.mean(values)) for weight, values in scores.items()}
     # Ties keep the smaller adapted weight, i.e. stay with the validated system.
-    return {"weight": min(WEIGHTS, key=lambda weight: (-means[weight], weight)),
+    return {"weight": first_best(WEIGHTS, means.__getitem__),
             "inner_balanced_accuracy": {str(weight): values for weight, values in scores.items()}}
 
 

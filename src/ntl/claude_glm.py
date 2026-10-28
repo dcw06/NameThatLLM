@@ -47,6 +47,7 @@ from .lora import AdapterConfig, validate_plan
 from .lora_compare import current_inner, current_on_split
 from .lora_final import _aligned_plan
 from .modeling import aligned_probabilities
+from .selection import first_best
 
 SPECIALIST = ("claude-fable-5", "claude-opus-4-6", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5",
               "glm-5.3", "glm-5.3-flash")
@@ -202,7 +203,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
                     scores[weight].append(float(balanced_accuracy_score(truth[valid], blended.argmax(axis=1))))
             means = {weight: float(np.mean(values)) for weight, values in scores.items()}
             # Ties keep the smaller specialist weight, i.e. stay with the current system.
-            weight = min(WEIGHTS, key=lambda value: (-means[value], value))
+            weight = first_best(WEIGHTS, means.__getitem__)
             rows = np.flatnonzero(folds == fold)
             specialist[rows] = specialist_probabilities(blocks, name, truth, np.flatnonzero(folds != fold), rows,
                                                         frozen)
@@ -274,7 +275,7 @@ def freeze_recipe(train: pd.DataFrame, blocks: dict[str, np.ndarray], final_plan
             predictions = redistribute(current, specialist, weight).argmax(axis=1)
             scores[weight].append(float(balanced_accuracy_score(truth[valid], predictions)))
     means = {weight: float(np.mean(values)) for weight, values in scores.items()}
-    weight = min(WEIGHTS, key=lambda value: (-means[value], value))
+    weight = first_best(WEIGHTS, means.__getitem__)
     styledistance = ENCODERS["styledistance"]
     return {"schema_version": 1, "kind": RECIPE_KIND, "labels": list(LABELS),
             "specialist_classes": list(SPECIALIST), "feature_set": FINAL_FEATURE_SET, "weight": weight,

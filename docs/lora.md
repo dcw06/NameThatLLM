@@ -147,8 +147,9 @@ Three defects in the first version of the pipeline are fixed, each with a regres
   train on different passages from the adapted model. The control now checks that its
   snapshot is the pinned revision, reads that tokenizer, and trains on the adapted model's
   exact batches. Both controls were rerun, and the figures above use the reruns. The
-  superseded control scores were 0.4390 for run 1 and 0.4323 for run 2. Batch assignment
-  alone therefore moves a head-only score by about half a point (0.44 and 0.56 points).
+  superseded control scores were 0.4390 for run 1 and 0.4330 for run 2 (0.4323 as first
+  recorded; see the tie correction below). Batch assignment alone therefore moves a
+  head-only score by about half a point (0.44 and 0.48 points).
 - **Zero-duration runs could keep earlier adapters.** A run with no training returned
   before resetting the adapters. A zero-duration final fit made after inner training in the
   same process could have saved trained adapters. The reported scores are unaffected: those
@@ -165,3 +166,12 @@ A second review of these fixes closed four related gaps, also with regression te
   than the plan's outer folds. This matters for the eight-topic check, which must use the
   topic-fold OOF (`artifacts/topic-cv/topics-8/blend/oof.parquet`).
 - **Run logs.** Fold logs record the snapshot revision.
+
+**A float tie in the superseded run-2 control.** An audit of every recorded nested
+selection (see [the 18-class head record](styledistance-head.md#review-correction)) found
+one choice that broke its tie rule. In fold 3 of the superseded control, three settings
+tie exactly at 137/360 of inner balanced accuracy. Float rounding put `lr3e-05-d0.25` one
+ulp ahead of `lr1e-05-d0.25`, which the rule (shorter duration, then smaller rate) should
+have kept. Refit at `lr1e-05-d0.25`, that fold scores 0.4337 instead of 0.4299, and the
+superseded control 0.4330 instead of 0.4323. Selection now treats scores within 10⁻¹² as
+tied. The reruns above, the comparisons and every submission are unaffected.

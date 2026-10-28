@@ -25,6 +25,7 @@ from . import ensemble, lora, lora_compare, neural
 from .constants import LABELS
 from .data import fingerprint_frame, read_test, read_train, write_submission
 from .folds import inner_prompt_splits
+from .selection import first_best
 
 # The outer folds used seed offsets 0-4; the one full-data selection gets its own.
 FINAL_SEED_OFFSET = 5
@@ -103,7 +104,7 @@ def choose(train: pd.DataFrame, features: np.ndarray, plan: pd.DataFrame, inner:
             scores[name].append(float(balanced_accuracy_score(truth[position.loc[rows["id"]]], predictions)))
     means = {name: float(np.mean(values)) for name, values in scores.items()}
     # Ties keep the shorter duration (zero is the frozen head), then the smaller learning rate.
-    chosen = min(settings, key=lambda name: (-means[name], settings[name][1], settings[name][0]))
+    chosen = first_best(sorted(settings, key=lambda name: (settings[name][1], settings[name][0])), means.__getitem__)
     rate, duration = settings[chosen]
     current = {}
     for inner_fold in range(config.inner_folds):

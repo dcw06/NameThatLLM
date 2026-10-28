@@ -28,6 +28,7 @@ from .constants import LABELS
 from .data import fingerprint_frame, read_train
 from .frozen_gemini import load_feature_archive
 from .lora import AdapterConfig, validate_plan
+from .selection import first_best
 from .style_encoders import ENCODERS
 
 INCUMBENT = "qwen+styledistance"
@@ -104,13 +105,13 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], encoders: tuple
         s_scores = {s: float(np.mean([_ba(truth[valid], claude_glm.redistribute(base, existing, s))
                                       for valid, base, existing, _ in inner]))
                     for s in claude_glm.WEIGHTS}
-        s = min(claude_glm.WEIGHTS, key=lambda value: (-s_scores[value], value))
+        s = first_best(claude_glm.WEIGHTS, s_scores.__getitem__)
         scores = {option_name(*option): [_ba(truth[valid], claude_glm.redistribute(
             base, mixed(existing, augmented, *option), s)) for valid, base, existing, augmented in inner]
             for option in grid}
         means = {name: float(np.mean(values)) for name, values in scores.items()}
-        # Options are in tie order, and min keeps the first of equal scores.
-        chosen = min(grid, key=lambda option: -means[option_name(*option)])
+        # Options are in tie order, and the first of equal scores is kept.
+        chosen = first_best(grid, lambda option: means[option_name(*option)])
         rows = np.flatnonzero(folds == fold)
         fit = np.flatnonzero(folds != fold)
         existing = claude_glm.specialist_probabilities(blocks, INCUMBENT, truth, fit, rows, frozen)

@@ -28,6 +28,7 @@ from .data import fingerprint_frame, read_train, write_submission
 from .folds import inner_prompt_splits, load_fold_manifest
 from .frozen_gemini import load_feature_archive, save_feature_archive
 from .modeling import BaselineConfig, aligned_probabilities, build_pipeline
+from .selection import first_best
 
 RECORDED_REFERENCE_BALANCED_ACCURACY = 0.359667
 # neural.validate_snapshot pins the backbone's hidden width.
@@ -132,6 +133,7 @@ def _blend(cpu: np.ndarray, qwen: np.ndarray, weight: float) -> np.ndarray:
     return (1 - weight) * cpu + weight * qwen
 
 
+
 def _outer_assignments(train: pd.DataFrame, manifest_path: str | Path) -> tuple[np.ndarray, dict]:
     manifest, metadata = load_fold_manifest(train, manifest_path)
     if metadata["n_splits"] != 5:
@@ -218,7 +220,7 @@ def _select_weight(texts, labels, features, targets, prompts, config: BlendConfi
                    "mean_inner_balanced_accuracy": float(np.mean(values))}
                   for weight, values in sorted(scores.items())]
     # Ties keep the smaller Qwen weight, i.e. stay closer to the CPU-only system.
-    best = min(candidates, key=lambda item: (-item["mean_inner_balanced_accuracy"], item["weight"]))
+    best = first_best(candidates, lambda item: item["mean_inner_balanced_accuracy"])
     return best["weight"], {"outer_fold": outer_fold, "selected_weight": best["weight"],
                             "candidates": candidates, "inner_splits": split_metadata,
                             "selection_metric": "Mean inner prompt-fold balanced accuracy; ties choose smaller weight."}

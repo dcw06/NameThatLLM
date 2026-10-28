@@ -26,6 +26,7 @@ from . import ensemble, neural
 from .constants import LABELS
 from .data import fingerprint_frame, read_train
 from .folds import inner_prompt_splits, load_fold_manifest
+from .selection import first_best
 
 
 @dataclass(frozen=True)
@@ -360,7 +361,7 @@ def run_fold(train: pd.DataFrame, plan: pd.DataFrame, experiment: Experiment, ou
             inner_rows.append(frame)
     means = {setting: float(np.mean(values)) for setting, values in scores.items()}
     # Ties keep the shorter duration (zero is the frozen head), then the smaller learning rate.
-    rate, duration = min(settings, key=lambda setting: (-means[setting], setting[1], setting[0]))
+    rate, duration = first_best(sorted(settings, key=lambda setting: (setting[1], setting[0])), means.__getitem__)
     fit_rows, eval_rows = np.flatnonzero(outer != outer_fold), np.flatnonzero(outer == outer_fold)
     result = experiment.run(fit_rows, eval_rows, rate, [duration] if duration > 0 else [])
     probabilities = result["probabilities"][duration]
