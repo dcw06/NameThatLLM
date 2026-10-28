@@ -106,11 +106,13 @@ def specialist_probabilities(blocks: dict[str, np.ndarray], feature_set: str, tr
     return probabilities
 
 
-def redistribute(current: np.ndarray, specialist: np.ndarray, weight: float) -> np.ndarray:
-    """(1 - s) p + s M q on the specialist's classes; every other class keeps its probability."""
+def redistribute(current: np.ndarray, specialist: np.ndarray, weight: float,
+                 index: np.ndarray = INDEX) -> np.ndarray:
+    """(1 - s) p + s M q on the specialist's classes (`index`, in the specialist's column
+    order); every other class keeps its probability."""
     result = np.array(current, dtype=float, copy=True)
-    mass = result[:, INDEX].sum(axis=1, keepdims=True)
-    result[:, INDEX] = (1 - weight) * result[:, INDEX] + weight * mass * specialist
+    mass = result[:, index].sum(axis=1, keepdims=True)
+    result[:, index] = (1 - weight) * result[:, index] + weight * mass * specialist
     return result
 
 
