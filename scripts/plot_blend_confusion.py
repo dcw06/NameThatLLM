@@ -1,4 +1,7 @@
-"""Plot the CPU-Qwen blend's prompt-grouped OOF confusion matrix and its change vs the CPU baseline."""
+"""Plot a system's prompt-grouped OOF confusion matrix and its change from a baseline system.
+
+Defaults: the CPU-Qwen blend against the CPU baseline.
+"""
 
 from __future__ import annotations
 
@@ -53,6 +56,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oof", type=Path, default=ROOT / "artifacts/qwen-blend/oof.parquet")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "artifacts/plots")
+    parser.add_argument("--system", default="prediction::blend", help="prediction column to plot")
+    parser.add_argument("--baseline", default="prediction::recorded_reference", help="prediction column to compare")
+    parser.add_argument("--system-title", default="CPU + Qwen blend (w = 0.25)")
+    parser.add_argument("--system-name", default="the blend")
+    parser.add_argument("--baseline-name", default="the CPU baseline")
+    parser.add_argument("--prefix", default="blend", help="output file prefix")
     args = parser.parse_args()
 
     import matplotlib
@@ -65,8 +74,8 @@ def main() -> None:
     from matplotlib.ticker import PercentFormatter
 
     oof = pd.read_parquet(args.oof)
-    blend_counts, blend = row_shares(oof["true_model"], oof["prediction::blend"])
-    _, cpu = row_shares(oof["true_model"], oof["prediction::recorded_reference"])
+    blend_counts, blend = row_shares(oof["true_model"], oof[args.system])
+    _, cpu = row_shares(oof["true_model"], oof[args.baseline])
     balanced = {name: float(np.diag(values).mean()) for name, values in (("blend", blend), ("cpu", cpu))}
     args.output_dir.mkdir(parents=True, exist_ok=True)
     common = f"Five prompt-grouped folds · {blend_counts.sum():,} out-of-fold passages"
@@ -76,7 +85,7 @@ def main() -> None:
     ax.set_facecolor(SURFACE)
     sequential = LinearSegmentedColormap.from_list("blue", SEQUENTIAL)
     heatmap = ax.imshow(np.ma.masked_equal(blend, 0), cmap=sequential, vmin=0, vmax=1)
-    frame_axes(ax, f"CPU + Qwen blend (w = 0.25) — confusion matrix\n{common} · "
+    frame_axes(ax, f"{args.system_title} — confusion matrix\n{common} · "
                    f"balanced accuracy {balanced['blend']:.1%}",
                "Each row sums to 100%. Labels: diagonal and confusions of 5% or more. "
                "Lines separate model families.")
@@ -90,17 +99,17 @@ def main() -> None:
     colorbar.set_label("Share of the true model's passages", color=INK)
     colorbar.ax.yaxis.set_major_formatter(PercentFormatter(1))
     colorbar.outline.set_visible(False)
-    fig.savefig(args.output_dir / "blend_confusion_matrix.png", dpi=150, facecolor=SURFACE)
+    fig.savefig(args.output_dir / f"{args.prefix}_confusion_matrix.png", dpi=150, facecolor=SURFACE)
     plt.close(fig)
 
-    # 2. Change vs the submitted CPU baseline, in percentage points of each true model's passages.
+    # 2. Change from the baseline, in percentage points of each true model's passages.
     change = blend - cpu
     limit = max(0.15, float(np.abs(change).max()))
     fig, ax = plt.subplots(figsize=(16, 14), layout="constrained", facecolor=SURFACE)
     ax.set_facecolor(SURFACE)
     diverging = LinearSegmentedColormap.from_list("red-gray-blue", DIVERGING)
     heatmap = ax.imshow(change, cmap=diverging, norm=TwoSlopeNorm(vcenter=0, vmin=-limit, vmax=limit))
-    frame_axes(ax, "Change from the CPU baseline to the blend\n"
+    frame_axes(ax, f"Change from {args.baseline_name} to {args.system_name}\n"
                    f"{common} · balanced accuracy {balanced['cpu']:.1%} → {balanced['blend']:.1%}",
                "Blue: more passages in that cell; red: fewer. Diagonal blue and off-diagonal red are improvements. "
                "Labels: diagonal and changes of 3 points or more.")
@@ -115,9 +124,9 @@ def main() -> None:
     colorbar.set_label("Change in share of the true model's passages (percentage points)", color=INK)
     colorbar.ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
     colorbar.outline.set_visible(False)
-    fig.savefig(args.output_dir / "blend_confusion_change.png", dpi=150, facecolor=SURFACE)
+    fig.savefig(args.output_dir / f"{args.prefix}_confusion_change.png", dpi=150, facecolor=SURFACE)
     plt.close(fig)
-    for name in ("blend_confusion_matrix.png", "blend_confusion_change.png"):
+    for name in (f"{args.prefix}_confusion_matrix.png", f"{args.prefix}_confusion_change.png"):
         print(args.output_dir / name)
 
 

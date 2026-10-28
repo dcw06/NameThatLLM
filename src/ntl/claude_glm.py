@@ -56,6 +56,11 @@ _POSITION = np.full(len(LABELS), -1)
 _POSITION[INDEX] = np.arange(len(SPECIALIST))
 WEIGHTS = (0.0, 0.25, 0.5, 0.75, 1.0)
 FEATURE_SETS = {"qwen": ("qwen",), "qwen+styledistance": ("qwen", "styledistance")}
+
+
+def feature_names(feature_set: str) -> tuple[str, ...]:
+    """The blocks of a feature set: a named one, or blocks joined by "+" (Qwen first)."""
+    return FEATURE_SETS.get(feature_set, tuple(feature_set.split("+")))
 BLEND = [f"blend::{label}" for label in LABELS]
 RECIPE_KIND = "claude-glm-specialist-recipe"
 # The validated candidate; the control (Qwen only) gave no gain.
@@ -85,7 +90,7 @@ def specialist_head(widths: tuple[int, ...], frozen: neural.FrozenConfig) -> Pip
 def specialist_probabilities(blocks: dict[str, np.ndarray], feature_set: str, truth: np.ndarray,
                              fit: np.ndarray, rows: np.ndarray, frozen: neural.FrozenConfig) -> np.ndarray:
     """Fit on the specialist-class rows among `fit`; seven-class probabilities for `rows`."""
-    names = FEATURE_SETS[feature_set]
+    names = feature_names(feature_set)
     features = np.hstack([blocks[name] for name in names])
     fit = fit[np.isin(truth[fit], INDEX)]
     targets = _POSITION[truth[fit]]

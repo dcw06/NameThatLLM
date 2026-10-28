@@ -40,6 +40,17 @@ MODEL_SPECS = {
         "revision": "b7df5f0b0480773c097ba3121d83ca32b71015ca",
         "model_type": "roberta", "hidden_size": 768, "num_hidden_layers": 12,
     },
+    # Style and authorship encoders for the Claude-GLM specialist (docs/claude-glm.md).
+    # LUAR-MUD's own config nests its RoBERTa backbone; its remote code is not downloaded.
+    "rrivera1849/LUAR-MUD": {
+        "revision": "f1db50251805ed69b43cf4f72ea2f0e231f36a1c",
+        "model_type": "LUAR", "hidden_size": 768, "num_hidden_layers": 6,
+        "nested_config": "backbone_config",
+    },
+    "rrivera1849/LUSR": {
+        "revision": "ab7852825ad1be40112bbfdaf1f9e2315a1727b7",
+        "model_type": "roberta", "hidden_size": 768, "num_hidden_layers": 12,
+    },
     "Qwen/Qwen3-Embedding-0.6B": {
         "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
         "model_type": "qwen3", "hidden_size": 1024, "num_hidden_layers": 28,
@@ -119,7 +130,8 @@ def _validate_config(directory: Path, spec: dict[str, Any]) -> None:
     config = _read_json(directory / "config.json")
     if config.get("model_type") != spec["model_type"]:
         raise SnapshotError("Downloaded config has an unexpected model_type.")
-    text_config = config.get("text_config", {}) if spec.get("nested_text") else config
+    nested = spec.get("nested_config") or ("text_config" if spec.get("nested_text") else None)
+    text_config = config.get(nested, {}) if nested else config
     for field in ("hidden_size", "num_hidden_layers"):
         if not isinstance(text_config, dict) or text_config.get(field) != spec[field]:
             raise SnapshotError(f"Downloaded config has an unexpected {field}.")
