@@ -423,6 +423,59 @@ def test_report_and_both_gates_match_independent_counts():
         style_adapt.report(truth, folds, groups, incumbent, candidate, gate="other", samples=10, seed=1)
 
 
+def test_the_topic_gate_treats_float_rounding_of_exact_ties_as_ties():
+    from sklearn.metrics import balanced_accuracy_score
+
+    # Three classes of ten passages in each of five folds; `correct` counts the right passages
+    # per fold and class, the rest being called the next class.
+    truth, folds = np.tile(np.repeat([0, 1, 2], 10), 5), np.repeat(np.arange(5), 30)
+    groups = np.arange(len(truth)) // 5
+
+    def predictions(correct):
+        result = truth.copy()
+        for fold, counts in enumerate(correct):
+            for label, count in enumerate(counts):
+                rows = np.flatnonzero((folds == fold) & (truth == label))
+                result[rows[count:]] = (label + 1) % 3
+        return result
+
+    def raw(first, second, rows=slice(None)):
+        return balanced_accuracy_score(truth[rows], second[rows]) - balanced_accuracy_score(truth[rows], first[rows])
+
+    # An exact overall tie: fold 0 trades 1 + 2 + 0 more right passages for 3 + 0 + 0.
+    incumbent = predictions([[3, 4, 2]] + [[2, 2, 2]] * 4)
+    tie = predictions([[5, 2, 2]] + [[2, 2, 2]] * 4)
+    assert raw(incumbent, tie) > 0  # the float residue of an exact tie
+    result = style_adapt.report(truth, folds, groups, incumbent, tie, gate="topic", samples=20, seed=1)
+    assert result["promotion"]["delta"] == 0.0 and not result["promotion"]["passes"]
+    # A real gain in fold 4, fold 3 unchanged, and the same exact trade in folds 0-2.
+    incumbent = predictions([[5, 4, 2]] * 3 + [[2, 4, 2]] * 2)
+    gain = predictions([[3, 6, 2]] * 3 + [[2, 4, 2], [3, 4, 2]])
+    assert all(raw(incumbent, gain, folds == fold) < 0 for fold in range(3))  # float residues
+    result = style_adapt.report(truth, folds, groups, incumbent, gain, gate="topic", samples=20, seed=1)
+    assert result["promotion"]["fold_changes"][:4] == [0.0] * 4
+    assert result["promotion"]["delta"] == pytest.approx(1 / 150)
+    assert result["promotion"]["nonnegative_folds"] == 5 and result["promotion"]["passes"]
+
+
+@pytest.mark.skipif(not (torch.cuda.is_available() or torch.backends.mps.is_available()),
+                    reason="needs a CUDA or MPS device")
+def test_a_partition_trains_and_checkpoints_on_an_accelerator(tmp_path, monkeypatch):
+    device = "cuda" if torch.cuda.is_available() else "mps"
+    train, _ = synthetic_frames(n_prompts=10)
+    manifest, metadata = build_fold_manifest(train)
+    plan = lora.split_plan(train, save_fold_manifest(manifest, metadata, tmp_path / "folds"), lora.AdapterConfig())
+    path = _snapshot(tmp_path / "model", monkeypatch, train["text"].tolist())
+    key = style_adapt.train_partition(train, plan, 0, 0, path, tmp_path / "encoders", epochs=3, save_epochs=(3,),
+                                      config=CONFIG, device=device)
+    head = key["checkpoints"]["3"]["temporary_head"]
+    assert head["training"]["rows"] == key["training_rows"] and np.isfinite(head["held_out"]["loss"])
+    assert key["checkpoints"]["3"]["reload_max_abs_difference"] <= style_adapt.RELOAD_TOLERANCE
+    assert key["environment"]["device"] == device and key["frozen_unchanged"]
+    adapted = style_adapt.load_partition(tmp_path / "encoders", train, plan, 0, 0, 3, CONFIG)
+    assert np.isfinite(adapted).any(axis=1).sum() == key["training_rows"] + key["validation_rows"]
+
+
 def test_partitions_follow_the_plan_and_never_overlap(tmp_path):
     train, _ = synthetic_frames(n_prompts=10)
     manifest, metadata = build_fold_manifest(train)

@@ -11,3 +11,9 @@ def first_best(options, score):
     options = list(options)
     best = max(score(option) for option in options)
     return next(option for option in options if score(option) >= best - TIE_TOLERANCE)
+
+
+def snap_tie(difference: float) -> float:
+    """`difference`, or exactly zero when it is within float rounding of zero: two balanced
+    accuracies that tie exactly can differ by about 1e-17 of either sign."""
+    return 0.0 if abs(difference) <= TIE_TOLERANCE else float(difference)

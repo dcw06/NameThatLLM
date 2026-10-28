@@ -403,6 +403,18 @@ It found no defect in the module.
   recorded comparison changed no interval or decision, only two quoted fractions: the
   [Gemini pair](gemini-pair.md) and [18-class head](styledistance-head.md) records.
 
+**A later code review** found two defects that did not affect this run. Both are now fixed
+and tested.
+- **The topic gate.** It compared raw float differences. An exact overall tie could read
+  as a gain of about 10⁻¹⁷ and pass. A real gain could fail when tied folds read as tiny
+  losses. Overall and per-fold changes within the shared 1e-12 tolerance now count as
+  exact ties. The same rule now applies to the blend's count of folds won, whose recorded
+  margins are all at least 2.9 points.
+- **Checkpoint diagnostics on an accelerator.** The temporary head's checkpoint scores
+  built a CPU tensor for a head on `--device`. They now follow the device, which was
+  checked by training a partition on MPS. CUDA was not available to test. On CUDA,
+  PyTorch's deterministic mode also requires `CUBLAS_WORKSPACE_CONFIG=:4096:8`.
+
 ### Decision
 
 **Not promoted.** The change is −0.19 points, against a required gain of at least +0.5

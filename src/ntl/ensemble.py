@@ -28,7 +28,7 @@ from .data import fingerprint_frame, read_train, write_submission
 from .folds import inner_prompt_splits, load_fold_manifest
 from .frozen_gemini import load_feature_archive, save_feature_archive
 from .modeling import BaselineConfig, aligned_probabilities, build_pipeline
-from .selection import TIE_TOLERANCE, first_best
+from .selection import TIE_TOLERANCE, first_best, snap_tie
 
 RECORDED_REFERENCE_BALANCED_ACCURACY = 0.359667
 # neural.validate_snapshot pins the backbone's hidden width.
@@ -170,8 +170,7 @@ def prompt_bootstrap(truth: np.ndarray, first: np.ndarray, second: np.ndarray, p
     with np.errstate(invalid="ignore", divide="ignore"):
         deltas = np.nanmean((weights @ second_correct - weights @ first_correct) / denominator, axis=1)
     deltas[np.abs(deltas) <= TIE_TOLERANCE] = 0.0
-    observed = balanced_accuracy_score(truth, second) - balanced_accuracy_score(truth, first)
-    observed = 0.0 if abs(observed) <= TIE_TOLERANCE else observed
+    observed = snap_tie(balanced_accuracy_score(truth, second) - balanced_accuracy_score(truth, first))
     return {"balanced_accuracy_delta": float(observed), "samples": samples, "seed": seed,
             "prompts": int(shape[0]),
             "delta_95_interval": [float(np.quantile(deltas, 0.025)), float(np.quantile(deltas, 0.975))],
@@ -299,7 +298,8 @@ def evaluate_blend(
     gate = {
         "gain_over_recorded_reference": gain,
         "gain_over_same_environment_cpu": systems["blend"]["balanced_accuracy"] - systems["cpu"]["balanced_accuracy"],
-        "folds_blend_beats_same_environment_cpu": int(sum(b > c for b, c in zip(blend_folds, cpu_folds, strict=True))),
+        "folds_blend_beats_same_environment_cpu": int(sum(snap_tie(b - c) > 0
+                                                          for b, c in zip(blend_folds, cpu_folds, strict=True))),
         "zero_weight_folds": int(sum(weight == 0 for weight in selected)),
     }
     gate["passed"] = bool(gain >= config.minimum_gain_over_recorded_reference

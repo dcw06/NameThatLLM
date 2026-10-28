@@ -36,7 +36,7 @@ from .constants import LABELS
 from .data import fingerprint_frame, read_train
 from .encoders import ENCODERS, masked_mean_pool, validate_snapshot
 from .lora import AdapterConfig, validate_plan
-from .selection import first_best
+from .selection import first_best, snap_tie
 from .specialist_mix import CONFUSIONS
 
 INCUMBENT = "qwen+styledistance"
@@ -361,7 +361,7 @@ def train_partition(train_frame: pd.DataFrame, plan: pd.DataFrame, outer_fold: i
         np.savez(directory / f"epoch{epoch}.npz", ids=ids[rows].astype(str), embeddings=embeddings,
                  training=np.arange(len(rows)) < len(training))  # training rows first, then validation rows
         with torch.inference_mode():
-            logits = head.eval()(torch.as_tensor(embeddings)).numpy()
+            logits = head.eval()(torch.as_tensor(embeddings, device=device)).cpu().numpy()
         is_training = np.arange(len(rows)) < len(training)
         diagnostics = {}
         for role, mask in (("training", is_training),
@@ -558,13 +558,14 @@ def report(truth: np.ndarray, folds: np.ndarray, groups: np.ndarray, incumbent: 
            *, gate: str, samples: int, seed: int) -> dict:
     """Metrics, the paired bootstrap (candidate minus incumbent, whole groups resampled) and the gate.
     Prompt gate: an unrounded gain of at least 0.005 with the 95% interval above zero.
-    Topic gate: a positive gain overall and a change of zero or more in at least three of the five folds."""
+    Topic gate: a positive gain overall and a change of zero or more in at least three of the five folds.
+    Changes within float rounding of zero count as exact ties."""
     predictions = {"incumbent": incumbent, "candidate": candidate}
     systems = {name: _metrics(truth, values, folds) for name, values in predictions.items()}
     paired = ensemble.prompt_bootstrap(truth, incumbent, candidate, groups, samples, seed)
-    delta = systems["candidate"]["balanced_accuracy"] - systems["incumbent"]["balanced_accuracy"]
-    fold_changes = [after - before for after, before in zip(systems["candidate"]["fold_balanced_accuracy"],
-                                                            systems["incumbent"]["fold_balanced_accuracy"])]
+    delta = snap_tie(systems["candidate"]["balanced_accuracy"] - systems["incumbent"]["balanced_accuracy"])
+    fold_changes = [snap_tie(after - before) for after, before in zip(systems["candidate"]["fold_balanced_accuracy"],
+                                                                      systems["incumbent"]["fold_balanced_accuracy"])]
     if gate == "prompt":
         passes = delta >= 0.005 and paired["delta_95_interval"][0] > 0
     elif gate == "topic":
