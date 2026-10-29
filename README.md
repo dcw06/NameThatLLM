@@ -145,5 +145,9 @@ Terra recall by 2–4 points each, at a cost to Qwen3.8 Max.
 An [inspection of the Fable / GLM errors](docs/fable-glm-errors.md) finds that most are not narrow:
 the true label is second in 48 of 127, and even an in-sample rescaling of the scores recovers about
 one passage, so these errors need information the current features lack.
+Adding a [block of explicit grammatical features](docs/grammar-block.md) (part-of-speech shares,
+clause, voice and modality rates, from a pinned spaCy parse) to that specialist changes nothing
+(−0.04 points, 95% interval [−0.41, +0.33]); on its own the block separates the seven classes far
+less well than StyleDistance.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
