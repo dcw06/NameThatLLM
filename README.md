@@ -157,6 +157,9 @@ the GPT versions far better (48.7% from the mean alone), but add nothing beyond 
 the GPT specialist with them gains +0.15 points (95% interval [−0.48, +0.81]).
 [External training passages](docs/external-data.md) (6,223 verified rows of a public CC BY 4.0 dataset,
 8 labels) added to the CPU model's training lose 1.07 points (95% interval [−2.19, +0.08]): the
-augmented classes are over-predicted at the expense of the 10 without external data.
+augmented classes are predicted more often, at the expense of the 10 without external data.
+A [matched GLM 5.3 / GLM Flash comparison](docs/glm-pair.md) (316 Z.AI-served external passages from
+shared prompts) moves a CPU-feature binary classifier from 51.7% to 53.3%, below the incumbent's own
+forced choice (57.3%), so no integration followed.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

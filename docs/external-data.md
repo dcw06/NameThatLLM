@@ -190,17 +190,24 @@ Its balanced accuracy falls from 36.3% to 33.9%.
   −4.0, Gemini 3.1 Pro −3.3, Gemini 3.8 Flash −3.3.
 - **Kimi K3:** +0.7.
 
-**What this answers:**
-- **Only 8 of the 18 classes got more examples,** and the model expanded around those
-  classes. Their predictions roughly doubled, their recall rose and their precision fell.
-- **The other classes lost recall,** including the GPT versions and Claude classes it was
-  meant to separate.
-- **The controls did not stop this.** The per-class cap and the class-balanced weighting
-  hold each class's total weight equal, but not its coverage of the feature space.
+**What was observed:**
+- **Only 8 of the 18 classes got more examples.** The CPU model predicts those classes
+  roughly twice as often: their recall rose and their precision fell.
+- **The other 10 classes lost recall,** including GPT-5.5, GPT-6 Astra and the Claude
+  classes.
 - **Qwen3.8 Max and Kimi, with 5 and 63 external rows, gain nothing.**
-- **The doubled classes do gain in the CPU model:** GLM recall roughly doubles, so the
-  external passages carry signal for their own classes. But the cost to the 10 classes
-  without external data outweighs it.
+
+**The cause is not established.**
+- **Not the weighting.** Class weights were already balanced, and the per-class cap held
+  each class's external passages to its competition count, so the shift is not explained by
+  class weight.
+- **Possible explanations, none of them tested:**
+  - provider differences (most external GLM rows came through third-party providers);
+  - generation settings (API defaults, varying reasoning budgets);
+  - vocabulary that differs from the competition's passages.
+- **Recall is not separation.** Higher recall with lower precision does not show that the
+  external passages teach the versions apart. Testing that needs a matched comparison
+  within a pair: the [GLM version experiment](glm-pair.md).
 
 **Not run:**
 - **Stage B** (the Qwen head and the specialist with external passages) needs the external
