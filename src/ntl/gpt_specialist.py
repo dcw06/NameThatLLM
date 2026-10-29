@@ -107,7 +107,7 @@ def compare(truth: np.ndarray, folds: np.ndarray, groups: np.ndarray, first: np.
 def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFrame, current_oof: pd.DataFrame,
              current_cache: pd.DataFrame, locked: np.ndarray, output_dir: str | Path, *, gate: str = "prompt",
              frozen: neural.FrozenConfig | None = None, samples: int = 10000, seed: int = 2026,
-             provenance: dict | None = None) -> dict:
+             provenance: dict | None = None, feature_sets: tuple[str, ...] = FEATURE_SETS) -> dict:
     frozen = frozen or neural.FrozenConfig()
     plan = validate_plan(train, plan, AdapterConfig())
     output = Path(output_dir)
@@ -118,12 +118,12 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
     truth, groups = ensemble._targets(train), train["prompt_id"].to_numpy()
     folds = plan["outer_fold"].to_numpy()
     current = claude_glm._aligned_current(current_oof, train, folds)
-    grid = options()
-    nested = {feature_set: [None] + [(feature_set, weight) for weight in WEIGHTS] for feature_set in FEATURE_SETS}
+    grid = options(feature_sets)
+    nested = {feature_set: [None] + [(feature_set, weight) for weight in WEIGHTS] for feature_set in feature_sets}
     candidate = np.empty_like(locked)
-    alone = {feature_set: np.empty_like(locked) for feature_set in FEATURE_SETS}
+    alone = {feature_set: np.empty_like(locked) for feature_set in feature_sets}
     by_option = {option_name(option): np.empty_like(locked) for option in grid}
-    gpt_scores = {feature_set: np.empty((len(train), len(GPT))) for feature_set in FEATURE_SETS}
+    gpt_scores = {feature_set: np.empty((len(train), len(GPT))) for feature_set in feature_sets}
     selection = []
     for fold in range(5):
         rebuilt, s, s_scores = gemini_pair.inner_incumbents(train, blocks, plan, current_cache, fold, frozen)
@@ -133,7 +133,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
                 raise ValueError("An inner partition overlaps its validation rows or the outer holdout")
             inner.append((valid, claude_glm.redistribute(base, claude, s),
                           {feature_set: specialist(blocks, feature_set, truth, fit, valid, frozen)
-                           for feature_set in FEATURE_SETS}))
+                           for feature_set in feature_sets}))
         scores = {option_name(option): [_ba(truth[valid], integrated(incumbent, gpt, option))
                                         for valid, incumbent, gpt in inner] for option in grid}
         means = {name: float(np.mean(values)) for name, values in scores.items()}
@@ -146,7 +146,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
         if difference > 1e-12 or (claude_glm.redistribute(current[rows], claude, s).argmax(axis=1)
                                   != locked[rows].argmax(axis=1)).any():
             raise ValueError(f"Fold {fold}: the rebuilt incumbent does not match its lock")
-        gpt = {feature_set: specialist(blocks, feature_set, truth, fit, rows, frozen) for feature_set in FEATURE_SETS}
+        gpt = {feature_set: specialist(blocks, feature_set, truth, fit, rows, frozen) for feature_set in feature_sets}
         for feature_set, values in gpt.items():
             gpt_scores[feature_set][rows] = values
         for option in grid:
@@ -186,7 +186,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
              candidate=candidate, **{f"gpt_{feature_set.replace('+', '_')}": values
                                      for feature_set, values in gpt_scores.items()})
     result = {
-        "incumbent": gemini_pair.INCUMBENT, "gpt": list(GPT), "feature_sets": list(FEATURE_SETS),
+        "incumbent": gemini_pair.INCUMBENT, "gpt": list(GPT), "feature_sets": list(feature_sets),
         "weights": list(WEIGHTS), "options": [option_name(option) for option in grid], "selection": selection,
         "systems": systems,
         "promotion": {"gate": gate, "delta": delta, "interval": report["paired"]["delta_95_interval"],
@@ -196,9 +196,10 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
         "candidate_vs_incumbent": report,
         "feature_sets_alone": {feature_set: compare(truth, folds, groups, predictions["incumbent"],
                                                     predictions[f"{feature_set}_alone"], samples, seed)
-                               for feature_set in FEATURE_SETS},
-        "qwen+styledistance_vs_qwen": compare(truth, folds, groups, predictions["qwen_alone"],
-                                              predictions["qwen+styledistance_alone"], samples, seed),
+                               for feature_set in feature_sets},
+        **({"qwen+styledistance_vs_qwen": compare(truth, folds, groups, predictions["qwen_alone"],
+                                                  predictions["qwen+styledistance_alone"], samples, seed)}
+           if {"qwen", "qwen+styledistance"} <= set(feature_sets) else {}),
         "gpt_confusion": {name: gpt_confusion(truth, values) for name, values in predictions.items()},
         "routing": routing(truth, predictions["incumbent"], predictions["candidate"]),
         # Diagnostics, never a selection.

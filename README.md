@@ -149,5 +149,8 @@ Adding a [block of explicit grammatical features](docs/grammar-block.md) (part-o
 clause, voice and modality rates, from a pinned spaCy parse) to that specialist changes nothing
 (−0.04 points, 95% interval [−0.41, +0.33]); on its own the block separates the seven classes far
 less well than StyleDistance.
+[DeTeCtive's authorship embeddings](docs/detective-gpt.md) (its Deepfake checkpoint) separate the five
+GPT versions at only 25% (chance 20%), and adding them to the GPT specialist changes nothing (0.00
+points, 95% interval [−0.59, +0.63]).
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

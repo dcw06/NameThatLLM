@@ -178,3 +178,12 @@ def test_confusion_and_routing_counts():
     assert moves["gpt-5.6-sol"] == {"gpt_to_other": 1, "other_to_gpt": 0}
     assert moves["gemini-3.1-pro-preview"] == {"gpt_to_other": 1, "other_to_gpt": 0}
     assert moves["gemini-3.6-flash"] == {"gpt_to_other": 0, "other_to_gpt": 1}
+
+
+def test_a_single_custom_feature_set_runs_end_to_end(setup):
+    p = setup
+    result = _evaluate(p, name="single", feature_sets=("qwen+styledistance",))
+    assert result["feature_sets"] == ["qwen+styledistance"] and "qwen+styledistance_vs_qwen" not in result
+    assert result["options"] == ["incumbent"] + [f"qwen+styledistance@w={w:g}" for w in gpt_specialist.WEIGHTS]
+    assert set(result["feature_sets_alone"]) == {"qwen+styledistance"}
+    assert all(item["selected"] in result["options"] for item in result["selection"])
