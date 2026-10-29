@@ -142,5 +142,8 @@ passages right on held-out folds, against the incumbent's forced 179.
 A [five-class GPT specialist](docs/gpt-specialist.md) mixed into the incumbent's GPT mass gains
 +0.26 points (95% interval [−0.30, +0.81]), short of the +0.5 promotion rule. It raises Luna, Sol and
 Terra recall by 2–4 points each, at a cost to Qwen3.8 Max.
+An [inspection of the Fable / GLM errors](docs/fable-glm-errors.md) finds that most are not narrow:
+the true label is second in 48 of 127, and even an in-sample rescaling of the scores recovers about
+one passage, so these errors need information the current features lack.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
