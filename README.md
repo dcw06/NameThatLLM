@@ -152,5 +152,8 @@ less well than StyleDistance.
 [DeTeCtive's authorship embeddings](docs/detective-gpt.md) (its Deepfake checkpoint) separate the five
 GPT versions at only 25% (chance 20%), and adding them to the GPT specialist changes nothing (0.00
 points, 95% interval [−0.59, +0.63]).
+[READER fingerprints](docs/reader-gpt.md) from its Qwen3-8B preset (layer-2 DCT trajectory) separate
+the GPT versions far better (48.7% from the mean alone), but add nothing beyond the current features:
+the GPT specialist with them gains +0.15 points (95% interval [−0.48, +0.81]).
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
