@@ -137,5 +137,7 @@ the frozen ones.
 A [seven-marker Gemini 3.7 / 3.8 study](docs/gemini-marker-study.md) (word lists, semicolons
 and colons) fails its prompt gate (−0.19 points, 95% interval [−0.52, +0.19]); length plus markers
 separate the pair at 59.3%, against the incumbent's forced 59.7%.
+A [fixed-C seven-marker scoring model](docs/gemini-binary-scoring.md) gets 175 of the 300 pair
+passages right on held-out folds, against the incumbent's forced 179.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.
