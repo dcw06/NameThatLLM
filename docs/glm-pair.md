@@ -123,10 +123,13 @@ augmented model 19.
 - **The CPU features barely separate the two GLM versions.** Trained on official passages
   alone, they reach 51.7%, near chance. The incumbent's own forced choice, which carries the
   Qwen + StyleDistance specialist, is clearly better.
-- **The matched external passages do not teach a useful distinction with these features.**
-  Adding 316 provider- and prompt-matched passages moves the score by +1.7 points, within
-  noise. The model also tilts toward Flash: GLM 5.3 recall falls 4 points and Flash recall
-  rises 7.
+- **No improvement is demonstrated.** That is weaker than "no useful signal". Adding 316
+  provider- and prompt-matched passages moves the score by +1.7 points, and the interval
+  (−4.0 to +7.3) still allows a meaningful improvement or meaningful harm. The model also
+  tilts toward Flash: GLM 5.3 recall falls 4 points and Flash recall rises 7.
+- **Why the stronger representation still needs testing.** The CPU control's 51.7% is a weak
+  starting point, so its failure does not show whether external passages help the stronger
+  Qwen + StyleDistance representation. That is tested next, with the same matched passages.
 - **What is untested.** The matched set is small, and the passages may still differ from the
   competition's in ways the matching did not control. This tests the existing CPU
   representation only.
