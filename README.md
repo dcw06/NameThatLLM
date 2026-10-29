@@ -155,5 +155,8 @@ points, 95% interval [−0.59, +0.63]).
 [READER fingerprints](docs/reader-gpt.md) from its Qwen3-8B preset (layer-2 DCT trajectory) separate
 the GPT versions far better (48.7% from the mean alone), but add nothing beyond the current features:
 the GPT specialist with them gains +0.15 points (95% interval [−0.48, +0.81]).
+[External training passages](docs/external-data.md) (6,223 verified rows of a public CC BY 4.0 dataset,
+8 labels) added to the CPU model's training lose 1.07 points (95% interval [−2.19, +0.08]): the
+augmented classes are over-predicted at the expense of the 10 without external data.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

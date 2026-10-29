@@ -117,6 +117,12 @@ def _cpu_probabilities(fit_texts: np.ndarray, fit_labels: np.ndarray, texts: np.
         return aligned_probabilities(pipeline, texts)
 
 
+def default_cpu(fit_texts: np.ndarray, fit_labels: np.ndarray, fit_prompts: np.ndarray, texts: np.ndarray,
+                config: BaselineConfig) -> np.ndarray:
+    """The CPU fit every selection uses unless given another (e.g. with external training rows)."""
+    return _cpu_probabilities(fit_texts, fit_labels, texts, config)
+
+
 def _qwen_probabilities(fit_features: np.ndarray, fit_targets: np.ndarray, features: np.ndarray,
                         config: neural.FrozenConfig) -> np.ndarray:
     # The existing recipe's fresh StandardScaler and C=0.005 logistic head.
@@ -210,12 +216,14 @@ def qwen_oof(train: pd.DataFrame, features: np.ndarray, manifest_path: str | Pat
     return metrics
 
 
-def _select_weight(texts, labels, features, targets, prompts, config: BlendConfig, outer_fold: int):
-    """Both classifiers are refit inside every inner split; no outer row is passed in."""
+def _select_weight(texts, labels, features, targets, prompts, config: BlendConfig, outer_fold: int, cpu=default_cpu):
+    """Both classifiers are refit inside every inner split; no outer row is passed in.
+    `cpu(fit_texts, fit_labels, fit_prompts, texts, config)` fits the CPU model."""
     splits, split_metadata = inner_prompt_splits(targets, prompts, config.inner_folds, config.seed + outer_fold)
+    cpu_fit = cpu
     scores = {weight: [] for weight in config.weight_grid}
     for fit, valid in splits:
-        cpu = _cpu_probabilities(texts[fit], labels[fit], texts[valid], config.cpu)
+        cpu = cpu_fit(texts[fit], labels[fit], prompts[fit], texts[valid], config.cpu)
         qwen = _qwen_probabilities(features[fit], targets[fit], features[valid], config.qwen)
         for weight in config.weight_grid:
             scores[weight].append(float(balanced_accuracy_score(targets[valid], _blend(cpu, qwen, weight).argmax(axis=1))))

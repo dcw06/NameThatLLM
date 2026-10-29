@@ -149,13 +149,13 @@ def _aligned_current(current_oof: pd.DataFrame, train: pd.DataFrame, folds: np.n
 
 
 def build_current_inner(train: pd.DataFrame, features: np.ndarray, plan: pd.DataFrame, outer_fold: int,
-                        config: ensemble.BlendConfig | None = None) -> pd.DataFrame:
+                        config: ensemble.BlendConfig | None = None, cpu=ensemble.default_cpu) -> pd.DataFrame:
     """The current system refit, with its own nested weight, on each inner split of one outer fold."""
     config = config or ensemble.BlendConfig()
     plan = validate_plan(train, plan, AdapterConfig())
     frames = []
     for inner_fold, (valid, probabilities, weight) in current_inner(train, features, plan, outer_fold,
-                                                                    config).items():
+                                                                    config, cpu).items():
         frame = pd.DataFrame(probabilities, columns=BLEND)
         frame.insert(0, "groups_sha256", groups_sha256(train))
         frame.insert(0, "weight", weight)

@@ -41,26 +41,27 @@ def load_runs(directory: str | Path, train: pd.DataFrame) -> tuple[np.ndarray, p
 
 
 def current_on_split(train: pd.DataFrame, features: np.ndarray, fit: np.ndarray, valid: np.ndarray,
-                     config: ensemble.BlendConfig, seed_offset: int) -> tuple[np.ndarray, float]:
+                     config: ensemble.BlendConfig, seed_offset: int,
+                     cpu=ensemble.default_cpu) -> tuple[np.ndarray, float]:
     """The current system refit on `fit` rows, with its own nested weight choice, scoring `valid`."""
     texts, labels = train["text"].to_numpy(dtype=object), train["model"].to_numpy(dtype=object)
     truth, prompts = ensemble._targets(train), train["prompt_id"].to_numpy()
     weight, _ = ensemble._select_weight(texts[fit], labels[fit], features[fit], truth[fit], prompts[fit],
-                                        config, seed_offset)
-    cpu = ensemble._cpu_probabilities(texts[fit], labels[fit], texts[valid], config.cpu)
+                                        config, seed_offset, cpu)
+    cpu = cpu(texts[fit], labels[fit], prompts[fit], texts[valid], config.cpu)
     qwen = ensemble._qwen_probabilities(features[fit], truth[fit], features[valid], config.qwen)
     return ensemble._blend(cpu, qwen, weight), weight
 
 
 def current_inner(train: pd.DataFrame, features: np.ndarray, plan: pd.DataFrame, outer_fold: int,
-                  config: ensemble.BlendConfig) -> dict[int, tuple[np.ndarray, np.ndarray, float]]:
+                  config: ensemble.BlendConfig, cpu=ensemble.default_cpu) -> dict[int, tuple[np.ndarray, np.ndarray, float]]:
     """Refit the current system on each inner training split of one outer fold."""
     column, outer = plan[f"inner_{outer_fold}"].to_numpy(), plan["outer_fold"].to_numpy()
     result = {}
     for inner_fold in sorted(set(column[outer != outer_fold])):
         fit, valid = np.flatnonzero((outer != outer_fold) & (column != inner_fold)), np.flatnonzero(column == inner_fold)
         probabilities, weight = current_on_split(train, features, fit, valid, config,
-                                                 10 * (outer_fold + 1) + inner_fold)
+                                                 10 * (outer_fold + 1) + inner_fold, cpu)
         result[inner_fold] = (valid, probabilities, weight)
     return result
 
