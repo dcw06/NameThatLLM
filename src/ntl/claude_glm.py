@@ -89,19 +89,23 @@ def specialist_head(widths: tuple[int, ...], frozen: neural.FrozenConfig) -> Pip
 
 
 def specialist_probabilities(blocks: dict[str, np.ndarray], feature_set: str, truth: np.ndarray,
-                             fit: np.ndarray, rows: np.ndarray, frozen: neural.FrozenConfig) -> np.ndarray:
-    """Fit on the specialist-class rows among `fit`; seven-class probabilities for `rows`."""
+                             fit: np.ndarray, rows: np.ndarray, frozen: neural.FrozenConfig,
+                             index: np.ndarray = INDEX) -> np.ndarray:
+    """Fit on the rows among `fit` whose class is in `index` (the seven Claude-GLM classes unless
+    given); probabilities over those classes, in `index` order, for `rows`."""
     names = feature_names(feature_set)
     features = np.hstack([blocks[name] for name in names])
-    fit = fit[np.isin(truth[fit], INDEX)]
-    targets = _POSITION[truth[fit]]
-    if set(targets) != set(range(len(SPECIALIST))):
+    position = np.full(len(LABELS), -1)
+    position[index] = np.arange(len(index))
+    fit = fit[np.isin(truth[fit], index)]
+    targets = position[truth[fit]]
+    if set(targets) != set(range(len(index))):
         raise ValueError("Every specialist class needs training rows")
     head = specialist_head(tuple(blocks[name].shape[1] for name in names), frozen)
     with threadpool_limits(limits=2):
         head.fit(features[fit], targets)
         probabilities = head.predict_proba(features[rows])
-    if not np.array_equal(head.classes_, np.arange(len(SPECIALIST))):
+    if not np.array_equal(head.classes_, np.arange(len(index))):
         raise ValueError("Specialist head must contain every specialist class")
     return probabilities
 
