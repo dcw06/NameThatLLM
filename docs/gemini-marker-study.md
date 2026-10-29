@@ -486,3 +486,48 @@ was not run, and nothing was fitted for deployment.
 
 Records are in `artifacts/gemini-marker-study/v2/`: `manifest.json`, `features.parquet`,
 `prompts/`, `history/`, `decision.json` and `report.md`.
+
+## Selection-history addendum (after the run)
+
+**What was supplied.** After the run, a label-wise quantification of these marker lists over
+all 300 pair passages was supplied (`history/label-wise-quantification.md`). It gives:
+- counts by version and paired comparisons;
+- weights from a standardized logistic regression fit on all 300 passages, with length
+  relative to the prompt mean as the largest term.
+
+**What it adds to the selection history:**
+- The features' label-wise behaviour was examined on every passage, including every outer
+  holdout.
+- Participle openers were considered and dropped as uninformative.
+
+**Check against the frozen extractor** (`history/quantification-check.py`; descriptive,
+nothing fitted):
+- **Reproduced exactly:** semicolons, colons, and the paired word-count comparison (3.7
+  longer in 90 prompts, 3.8 in 60, no ties).
+- **Not reproduced: the five word-list features.** Under complete-token matching:
+
+  | Feature | Frozen extractor (3.7 / 3.8) | Supplied |
+  | --- | --- | --- |
+  | Kinetic verbs | 10 / 30 | 33 / 55 |
+  | Systemic terms | 19 / 14 | 76 / 64 |
+  | Sensory terms | 43 / 59 | 72 / 89 |
+  | Hedges | 36 / 27 | 37 / 28 |
+  | Formal connectors | 16 / 9 | 19 / 11 |
+
+- **Broader matching does not reproduce them either.** Prefix, stem and substring matching
+  were tried. The five listed systemic words never occur more than 19 / 15 times under any
+  of them.
+- **So the supplied table describes other word lists or matching rules** than those frozen
+  and tested, and its weights do not apply to the tested features.
+
+**Under the frozen definitions** the paired differences are:
+- **Kinetic verbs:** higher for 3.8 in 21 prompts, for 3.7 in 4 (sign test p = 0.001).
+- **Sensory terms:** 30 against 15 (p = 0.04).
+- **The other features:** none differs at p < 0.15.
+
+These counts are descriptive and were examined after the run.
+
+**The study's result is unchanged.** It evaluated the frozen extractor, and its prompt gate
+failed. The suggested score also cannot be used as given:
+- its relative-length term needs prompt groups, which the test file lacks;
+- weights fit on all 300 passages have no held-out estimate on this data.
