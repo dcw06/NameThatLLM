@@ -134,5 +134,8 @@ Adapting StyleDistance's top four layers on the Claude and GLM passages, mixed i
 Claude–GLM specialist, does not help either (−0.19 points, 95% interval [−0.41, +0.04]).
 On held-out passages the adapted embeddings separate those seven classes no better than
 the frozen ones.
+A [seven-marker Gemini 3.7 / 3.8 study](docs/gemini-marker-study.md) (word lists, semicolons
+and colons) fails its prompt gate (−0.19 points, 95% interval [−0.52, +0.19]); length plus markers
+separate the pair at 59.3%, against the incumbent's forced 59.7%.
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

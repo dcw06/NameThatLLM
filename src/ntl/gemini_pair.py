@@ -14,6 +14,8 @@ features, standardized, with the frozen recipe's logistic regression (C in {0.00
 each outer training partition choose s first, as the incumbent does, then one option:
 the unchanged incumbent, or a configuration and C at a in {0.25, 0.5, 0.75, 1}, scored on
 all 18 classes. Ties keep the incumbent, then the smaller a, then CPU, then the smaller C.
+Other configurations (e.g. `ntl.gemini_rubric`) name feature blocks joined by "+", each
+fit with the Claude-GLM specialist's block-scaled head.
 """
 
 from __future__ import annotations
@@ -39,14 +41,21 @@ PAIR_INDEX = np.array([LABELS.index(label) for label in PAIR])
 GEMINI = ("gemini-3.1-pro-preview", "gemini-3.6-flash", *PAIR)
 INCUMBENT = "qwen+styledistance"
 CONFIGURATIONS = {"cpu": (0.1, 1.0, 4.0), "qwen": (0.005, 0.05, 0.5)}
-SPECIALISTS = [(configuration, C) for configuration, grid in CONFIGURATIONS.items() for C in grid]
 WEIGHTS = (0.25, 0.5, 0.75, 1.0)
 REFERENCE = "incumbent"
 
 
-def options() -> list[tuple[str, float, float] | None]:
-    """In tie order: the incumbent, then the smaller a, then CPU before Qwen, then the smaller C."""
-    return [None] + [(configuration, C, weight) for weight in WEIGHTS for configuration, C in SPECIALISTS]
+def specialists(configurations: dict[str, tuple[float, ...]] = CONFIGURATIONS) -> list[tuple[str, float]]:
+    return [(configuration, C) for configuration, grid in configurations.items() for C in grid]
+
+
+SPECIALISTS = specialists()
+
+
+def options(configurations: dict[str, tuple[float, ...]] = CONFIGURATIONS) -> list[tuple[str, float, float] | None]:
+    """In tie order: the incumbent, then the smaller a, then the configurations in order, then the smaller C."""
+    return [None] + [(configuration, C, weight) for weight in WEIGHTS
+                     for configuration, C in specialists(configurations)]
 
 
 def option_name(option: tuple[str, float, float] | None) -> str:
@@ -58,7 +67,8 @@ def specialist_name(configuration: str, C: float) -> str:
 
 
 def pair_probabilities(texts: np.ndarray, qwen: np.ndarray, truth: np.ndarray, fit: np.ndarray, rows: np.ndarray,
-                       configuration: str, C: float, seed: int) -> np.ndarray:
+                       configuration: str, C: float, seed: int, blocks: dict[str, np.ndarray] | None = None
+                       ) -> np.ndarray:
     """Fit on the true-pair rows among `fit`; (3.7, 3.8) probabilities for `rows`."""
     fit = fit[np.isin(truth[fit], PAIR_INDEX)]
     targets = (truth[fit] == PAIR_INDEX[1]).astype(int)
@@ -68,6 +78,10 @@ def pair_probabilities(texts: np.ndarray, qwen: np.ndarray, truth: np.ndarray, f
         model, inputs = build_pipeline(BaselineConfig(seed=seed, C=C)), texts
     elif configuration == "qwen":  # the frozen recipe's fresh StandardScaler and logistic head
         model, inputs = neural._head(neural.FrozenConfig(C=C, seed=seed)), qwen
+    elif blocks is not None and set(names := claude_glm.feature_names(configuration)) <= set(blocks):
+        model = claude_glm.specialist_head(tuple(blocks[name].shape[1] for name in names),
+                                           neural.FrozenConfig(C=C, seed=seed))
+        inputs = np.hstack([blocks[name] for name in names])
     else:
         raise ValueError(f"Unknown configuration {configuration!r}")
     with threadpool_limits(limits=2):
@@ -116,9 +130,29 @@ def _binary(truth: np.ndarray, pair: np.ndarray, incumbent: np.ndarray, candidat
             "fixed_specialists": {name: score(values) for name, values in fixed.items()}}
 
 
+def inner_incumbents(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFrame,
+                     current_cache: pd.DataFrame, fold: int, frozen: neural.FrozenConfig
+                     ) -> tuple[list[tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]], float, dict]:
+    """The complete incumbent rebuilt on each inner split of one outer fold, as claude_glm.evaluate
+    builds it: [(inner fold, fitting rows, validation rows, base-blend probabilities, Claude-GLM
+    specialist)], the s its inner folds choose, and their mean balanced accuracy by s."""
+    truth, folds = ensemble._targets(train), plan["outer_fold"].to_numpy()
+    column = plan[f"inner_{fold}"].to_numpy()
+    inner = []
+    for inner_fold, (valid, base) in claude_glm._inner_current(current_cache, train, plan, fold).items():
+        fit = np.flatnonzero((folds != fold) & (column != inner_fold))
+        specialist = claude_glm.specialist_probabilities(blocks, INCUMBENT, truth, fit, valid, frozen)
+        inner.append((inner_fold, fit, valid, base, specialist))
+    s_scores = {s: float(np.mean([_ba(truth[valid], claude_glm.redistribute(base, specialist, s))
+                                  for _, _, valid, base, specialist in inner]))
+                for s in claude_glm.WEIGHTS}
+    return inner, first_best(claude_glm.WEIGHTS, s_scores.__getitem__), s_scores
+
+
 def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFrame, current_oof: pd.DataFrame,
              current_cache: pd.DataFrame, output_dir: str | Path, *, frozen: neural.FrozenConfig | None = None,
-             samples: int = 10000, seed: int = 2026, provenance: dict | None = None) -> dict:
+             samples: int = 10000, seed: int = 2026, provenance: dict | None = None,
+             configurations: dict[str, tuple[float, ...]] = CONFIGURATIONS) -> dict:
     frozen = frozen or neural.FrozenConfig()
     plan = validate_plan(train, plan, AdapterConfig())
     output = Path(output_dir)
@@ -131,26 +165,18 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
     texts, qwen = train["text"].to_numpy(dtype=object), blocks["qwen"]
     folds = plan["outer_fold"].to_numpy()
     current = claude_glm._aligned_current(current_oof, train, folds)
-    grid = options()
+    grid, keys = options(configurations), specialists(configurations)
     incumbent, candidate = np.empty_like(current), np.empty_like(current)
     by_option = {option_name(option): np.empty_like(current) for option in grid}
-    fixed = {specialist_name(*key): np.empty((len(train), 2)) for key in SPECIALISTS}
+    fixed = {specialist_name(*key): np.empty((len(train), 2)) for key in keys}
     reported = np.empty((len(train), 2))
     selection = []
     for fold in range(5):
-        column = plan[f"inner_{fold}"].to_numpy()
-        inner = []
-        for inner_fold, (valid, inner_current) in claude_glm._inner_current(current_cache, train, plan,
-                                                                            fold).items():
-            fit = np.flatnonzero((folds != fold) & (column != inner_fold))
-            specialist = claude_glm.specialist_probabilities(blocks, INCUMBENT, truth, fit, valid, frozen)
-            pair = {key: pair_probabilities(texts, qwen, truth, fit, valid, *key, frozen.seed) for key in SPECIALISTS}
-            inner.append((valid, inner_current, specialist, pair))
         # The incumbent's own choice of s, as claude_glm.evaluate makes it.
-        s_scores = {s: float(np.mean([_ba(truth[valid], claude_glm.redistribute(base, specialist, s))
-                                      for valid, base, specialist, _ in inner]))
-                    for s in claude_glm.WEIGHTS}
-        s = first_best(claude_glm.WEIGHTS, s_scores.__getitem__)
+        rebuilt, s, s_scores = inner_incumbents(train, blocks, plan, current_cache, fold, frozen)
+        inner = [(valid, base, specialist,
+                  {key: pair_probabilities(texts, qwen, truth, fit, valid, *key, frozen.seed, blocks) for key in keys})
+                 for _, fit, valid, base, specialist in rebuilt]
         scores = {option_name(option): [_ba(truth[valid], integrated(claude_glm.redistribute(base, specialist, s),
                                                                      pair, option))
                                         for valid, base, specialist, pair in inner]
@@ -162,7 +188,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
         rows, fit = np.flatnonzero(folds == fold), np.flatnonzero(folds != fold)
         specialist = claude_glm.specialist_probabilities(blocks, INCUMBENT, truth, fit, rows, frozen)
         incumbent[rows] = claude_glm.redistribute(current[rows], specialist, s)
-        pair = {key: pair_probabilities(texts, qwen, truth, fit, rows, *key, frozen.seed) for key in SPECIALISTS}
+        pair = {key: pair_probabilities(texts, qwen, truth, fit, rows, *key, frozen.seed, blocks) for key in keys}
         for key, values in pair.items():
             fixed[specialist_name(*key)][rows] = values
         reported[rows] = pair[shown[:2]]
@@ -190,7 +216,7 @@ def evaluate(train: pd.DataFrame, blocks: dict[str, np.ndarray], plan: pd.DataFr
     pair_frame.to_parquet(output / "pair-probabilities.parquet", index=False)
     result = {
         "incumbent": INCUMBENT, "pair": list(PAIR), "configurations": {key: list(grid)
-                                                                       for key, grid in CONFIGURATIONS.items()},
+                                                                       for key, grid in configurations.items()},
         "weights": list(WEIGHTS), "systems": systems, "paired": paired, "selection": selection,
         "binary": _binary(truth, reported, incumbent, candidate, fixed),
         "gemini_recall": {label: {name: systems[name]["recall"][label] for name in systems} for label in GEMINI},
