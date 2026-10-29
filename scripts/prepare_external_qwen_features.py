@@ -104,9 +104,9 @@ def matched_ids() -> tuple[list[str], dict[str, int]]:
 
     from ntl import external_data, glm_pair
 
-    pool = pd.read_parquet(ROOT / "artifacts" / "external-data" / "pool.parquet").set_index("id")
+    pool = pd.read_parquet(ROOT / "artifacts" / "external-data-v2" / "pool.parquet").set_index("id")
     matched = glm_pair.matched_external(
-        external_data.load_external(ROOT / "data" / "external" / "ntl-openrouter-openai" / PARQUET),
+        external_data.load_external(ROOT / "data" / "external" / "ntl-openrouter-openai-v2" / PARQUET),
         pool["link"].fillna(""))
     return matched["row_id"].tolist(), {key: int(value) for key, value in matched["model"].value_counts().items()}
 

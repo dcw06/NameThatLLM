@@ -28,6 +28,32 @@ own terms still apply.
 for a possible later arm but not used here. Its responses are capped at 128 tokens, use
 agent-style prompts, and remain "subject to applicable source-model and API-provider terms".
 
+## Dataset version 2: withdrawn rows
+
+On 2026-10-29 the publisher released **version 2** (6,633 passages; parquet SHA-256
+`ed59c651…fd390e`). It withdrew 1,120 rows that answered 455 prompts whose wording had been
+generated with Kaggle Benchmarks quota. The host clarified in competition discussion 752084
+that benchmark quota must not be used to build training sets.
+
+**What changed:**
+- **The withdrawn rows** all came from the publisher's "own generated prompt bank":
+  - GLM 5.3 and GLM 5.3 Flash: 455 each;
+  - GPT-5.6 Luna: 131, and Sol and Terra: 28 each;
+  - Kimi K3: 19, Gemini 3.7 Flash: 3, Qwen3.8 Max: 1.
+- **The rest is unchanged.** Version 2 is a strict subset of version 1, and every remaining
+  row is identical in every column.
+
+**Effect on the work so far:**
+- **Stage A was run on version 1.** Its verified pool of 6,223 rows included all 1,120
+  withdrawn rows. That experiment was cross-validation only: it was not promoted, and
+  nothing trained on those rows was ever submitted. Its result is kept below as a record of
+  what was run.
+- **The GLM experiments used none of the withdrawn rows.** The 316 matched passages are all
+  present and unchanged in version 2, and version 2 yields exactly the same matched set and
+  topic links.
+- **From now on only version 2 is used.** `ntl.external_data` accepts only the version 2
+  file and refuses version 1. Its verified pool has 5,103 rows (τ = 0.185).
+
 ## Audit
 
 This was done before any model was fit.

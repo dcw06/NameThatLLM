@@ -12,6 +12,11 @@ failure does not show whether external passages help this representation.
   57.3%;
 - the complete incumbent: 47.01% grouped CV, 0.429 public.
 
+**Dataset version.** Version 2 of the external dataset (SHA-256 `ed59c651…fd390e`) is
+used. Version 1's 1,120 rows built with Kaggle Benchmarks quota were withdrawn, and none of
+them is among the 316 matched passages. Version 2 yields the identical matched set and the
+same 12 topic links (τ = 0.185 with the version-2 pool).
+
 ## Features of the external passages
 
 These must match the official passages' cached features exactly in recipe.
@@ -78,3 +83,74 @@ Each model scores P(Flash), and above 0.5 predicts Flash.
   zero.
 
 **Out of scope:** further CPU variants and the unverified rows.
+
+## Result: original prompt folds (October 29, 2026)
+
+```sh
+PYTHONPATH=src .venv/bin/python -m ntl.glm_pair_qwen styledistance --train data/raw/train.csv \
+  --external data/external/ntl-openrouter-openai-v2/ntl_openrouter_openai_generations.parquet \
+  --pool artifacts/external-data-v2/pool.parquet --model-path models/styledistance \
+  --cached artifacts/claude-glm/styledistance-train.npz --output artifacts/glm-pair/styledistance-matched.npz
+PYTHONPATH=src .venv/bin/python scripts/prepare_external_qwen_features.py --username daichongwei06
+kaggle kernels push -p artifacts/external_qwen_features   # private; version 2 of the kernel
+PYTHONPATH=src .venv/bin/python -m ntl.glm_pair_qwen evaluate --train data/raw/train.csv \
+  --plan artifacts/lora/plan.csv \
+  --external data/external/ntl-openrouter-openai-v2/ntl_openrouter_openai_generations.parquet \
+  --pool artifacts/external-data-v2/pool.parquet \
+  --qwen-features artifacts/qwen-validation-results/features/qwen3-8b-base-train.npz \
+  --styledistance-features artifacts/claude-glm/styledistance-train.npz \
+  --external-qwen artifacts/external-qwen-results/v2/features/qwen3-8b-base-external-glm.npz \
+  --external-qwen-reference artifacts/external-qwen-results/v2/features/qwen3-8b-base-official-reference.npz \
+  --external-styledistance artifacts/glm-pair/styledistance-matched.npz \
+  --reference artifacts/styledistance-adapt/reference-prompts.json --output-dir artifacts/glm-pair-qwen/prompts
+```
+
+**Feature checks:**
+- **StyleDistance.** Re-extracting the first 32 official passages reproduced their cached
+  features exactly (maximum difference 0.0).
+- **The first Kaggle run stopped at its own safeguard.** The attached dataset had become
+  version 2, whose hash did not match the audited version 1, so nothing was extracted.
+- **The rerun used version 2,** after the checks described above.
+- **Qwen.** The Kaggle T4 run (NF4, float16, none truncated) re-extracted the first 16
+  official passages in their original batches. It reproduced their cached features exactly
+  (maximum difference 0.0), so the external passages' features come from an identical
+  environment.
+
+**Binary separation on the 300 official GLM passages** (312–316 external passages per fold,
+0–4 held back by topic links):
+
+| Predictor | Binary BA | GLM 5.3 recall | GLM Flash recall | GLM → Flash | Flash → GLM |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Incumbent, forced choice | **57.3%** | 59.3% | 55.3% | 61 | 67 |
+| Control: Qwen + StyleDistance, official only | 56.7% | 58.0% | 55.3% | 63 | 67 |
+| Official + matched external | 54.0% | 46.7% | 61.3% | 80 | 58 |
+
+**Paired comparisons:**
+
+| Comparison | Corrected / introduced | Change | 95% interval |
+| --- | --- | ---: | --- |
+| Augmented against the control | 39 / 47 | −2.7 | [−7.7, +2.3] |
+| Augmented against the incumbent's forced choice | 49 / 59 | −3.3 | [−8.7, +2.0] |
+| Control against the incumbent's forced choice | 20 / 22 | −0.7 | [−4.7, +3.3] |
+
+**By fold** (control → augmented): 61.7 → 56.7, 53.3 → 38.3, 58.3 → 65.0, 48.3 → 46.7 and
+61.7 → 63.3.
+
+**The incumbent's 58 direct swaps.** The control calls 8 correctly and the augmented model 22.
+The augmented model introduces more new errors elsewhere than that.
+
+**Gate: failed.** The augmented model does not beat its control (−2.7 points, with an
+interval spanning zero), and it falls below the incumbent's forced choice. As declared, no
+integration was built.
+
+**What this answers:**
+- **A strong control, no gain from the external passages.** On the stronger representation,
+  the official-only control nearly matches the incumbent's forced choice (56.7% against
+  57.3%). Adding the 316 matched passages gives no demonstrated improvement: the point
+  estimate is −2.7 points, and the interval (−7.7 to +2.3) still allows a small gain or a
+  larger loss.
+- **The same tilt toward Flash as with CPU features.** GLM 5.3 recall falls about 11 points
+  and Flash recall rises about 6.
+- **A possible cause, not tested.** The consistent tilt suggests the external GLM 5.3
+  passages differ from the competition's GLM 5.3 passages, for example in generation
+  settings. This experiment cannot establish the cause.

@@ -31,7 +31,9 @@ from .constants import LABELS
 from .data import read_train
 from .lora import AdapterConfig, validate_plan
 
-SOURCE_SHA256 = "b205a6805ed407910d69a1223b62a2a9b2320c438915221fb9256bb8c80cc268"
+# Version 2 (2026-10-29). Version 1 (b205a680...) held 1,120 rows the publisher withdrew because their prompts
+# were generated with Kaggle Benchmarks quota, which the host ruled out for building training sets.
+SOURCE_SHA256 = "ed59c651a62e3cde0e144ed07b05ed53c1ba2d350d1a2a6455f2e85524fd390e"
 SERVED = {"gemini-3.7-flash": "google/gemini-3.7-flash", "glm-5.3": "z-ai/glm-5.3",
           "glm-5.3-flash": "z-ai/glm-5.3-flash", "kimi-k3": "moonshotai/kimi-k3",
           "qwen3.8-max": "qwen/qwen3.8-max-0902", "gpt-5.6-luna": "gpt-5.6-luna", "gpt-5.6-sol": "gpt-5.6-sol",

@@ -161,5 +161,9 @@ augmented classes are predicted more often, at the expense of the 10 without ext
 A [matched GLM 5.3 / GLM Flash comparison](docs/glm-pair.md) (316 Z.AI-served external passages from
 shared prompts) moves a CPU-feature binary classifier from 51.7% to 53.3%, below the incumbent's own
 forced choice (57.3%), so no integration followed.
+On [Qwen + StyleDistance features](docs/glm-pair-qwen.md) the same matched passages lower the binary
+classifier from 56.7% to 54.0% (95% interval for the change [−7.7, +2.3]), again tilting it toward
+Flash. Version 2 of that dataset withdrew 1,120 rows built with Kaggle Benchmarks quota; only version
+2 is used from now on (see [external-data.md](docs/external-data.md)).
 The written final deadline is January 13, 2027, while live metadata previously showed
 January 14; plan for the earlier date until the host resolves the discrepancy.

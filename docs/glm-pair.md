@@ -82,6 +82,10 @@ incumbent's forced choice.
 
 ## Result: original prompt folds (October 28, 2026)
 
+**Dataset version.** The matched passages were selected from version 1 of the external dataset. All 316 are present and unchanged
+in version 2, which withdrew 1,120 other rows built with Kaggle Benchmarks quota (see [external-data.md](external-data.md)).
+So this result used none of the withdrawn rows.
+
 ```sh
 PYTHONPATH=src .venv/bin/python -m ntl.glm_pair --train data/raw/train.csv --plan artifacts/lora/plan.csv \
   --external data/external/ntl-openrouter-openai/ntl_openrouter_openai_generations.parquet \
